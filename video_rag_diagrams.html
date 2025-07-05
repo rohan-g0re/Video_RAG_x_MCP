@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video RAG System - Architecture & User Journey</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 600;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .diagram-section {
+            margin-bottom: 60px;
+        }
+        
+        .diagram-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .diagram-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .diagram-description {
+            font-size: 1rem;
+            color: #4a5568;
+            margin-bottom: 25px;
+            padding: 15px;
+            background-color: #edf2f7;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .mermaid {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .tech-stack {
+            margin-top: 40px;
+            padding: 25px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .tech-stack h3 {
+            color: #2d3748;
+            margin-top: 0;
+            font-size: 1.3rem;
+        }
+        
+        .tech-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .tech-item {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+        
+        .tech-category {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .diagram-title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Video RAG System</h1>
+            <p>Local Video Retrieval-Augmented Generation with Cursor Pro Integration</p>
+        </div>
+        
+        <div class="content">
+            <!-- User Journey Diagram -->
+            <div class="diagram-section">
+                <h2 class="diagram-title">1. Complete User Journey</h2>
+                <div class="diagram-description">
+                    <strong>Overview:</strong> This diagram shows the complete user experience from setup to querying. 
+                    The journey is divided into three main phases: Setup (initial configuration), 
+                    Video Ingestion (processing videos with local + Cursor Pro models), and 
+                    Querying (searching and getting answers with clip extraction).
+                </div>
+                <div class="mermaid">
+journey
+    title Video RAG User Journey
+    section Setup Phase
+      Install System           : 5: User
+      Configure Video Directory: 4: User
+      Setup MCP Connection     : 3: User
+    section Video Ingestion
+      Add Videos to Directory  : 5: User
+      Run Ingest Command       : 5: User
+      Extract Frames & Audio   : 3: Local System
+      Basic Transcription      : 3: Local System
+      Send Frames to Cursor Pro: 4: MCP Server
+      Vision Analysis          : 5: Cursor Pro
+      Store in Vector DB       : 4: Local System
+      Processing Complete      : 5: User
+    section Querying
+      Enter Natural Language Query: 5: User
+      Local Vector Search         : 4: Local System
+      Enhance Query via Cursor Pro: 4: MCP Server
+      Refined Search Results      : 4: Local System
+      Generate Answer via Cursor Pro: 5: MCP Server
+      Extract Video Clip          : 4: Local System
+      View Results & Clip         : 5: User
+                </div>
+            </div>
+            
+            <!-- Architecture Flow Diagram -->
+            <div class="diagram-section">
+                <h2 class="diagram-title">2. Complete Architecture Flow</h2>
+                <div class="diagram-description">
+                    <strong>Overview:</strong> This diagram illustrates the technical architecture showing 
+                    how components interact. The local system (2.5GB RAM) handles video processing and storage, 
+                    while Cursor Pro models (via MCP) provide advanced vision analysis and language generation. 
+                    Data flows from video files through processing pipelines to searchable storage.
+                </div>
+                <div class="mermaid">
+graph TB
+    subgraph "User Interface"
+        CLI[CLI Interface<br/>video-rag command]
+    end
+    
+    subgraph "Local System (2.5GB RAM)"
+        VM[Video Manager<br/>File Operations]
+        VP[Video Processor<br/>ffmpeg + OpenCV]
+        AT[Audio Transcriber<br/>Whisper-tiny 39MB]
+        VS[Vector Store<br/>ChromaDB]
+        MS[Metadata Store<br/>SQLite]
+        CE[Clip Extractor<br/>ffmpeg trimming]
+        EM[Embedding Model<br/>MiniLM 90MB]
+    end
+    
+    subgraph "MCP Bridge Layer"
+        MC[MCP Client<br/>Communication Hub]
+        MVS[Vision MCP Server]
+        MLS[LLM MCP Server]
+        MQS[Query MCP Server]
+    end
+    
+    subgraph "Cursor Pro Models"
+        GPT4V[GPT-4V<br/>Vision Analysis]
+        GPT4[GPT-4<br/>Query Enhancement]
+        Claude[Claude 3.5<br/>Answer Generation]
+    end
+    
+    subgraph "Data Flow"
+        VF[Video Files]
+        FR[Extracted Frames]
+        AU[Audio Tracks]
+        TR[Transcripts]
+        VD[Visual Descriptions]
+        VC[Vector Embeddings]
+        MD[Metadata]
+        CL[Generated Clips]
+    end
+    
+    %% User Interactions
+    CLI --> VM
+    CLI --> CE
+    
+    %% Local Processing Flow
+    VM --> VP
+    VP --> FR
+    VP --> AU
+    AU --> AT
+    AT --> TR
+    
+    %% MCP Communications
+    FR --> MC
+    MC --> MVS
+    MVS --> GPT4V
+    GPT4V --> VD
+    
+    %% Query Processing
+    CLI --> MC
+    MC --> MQS
+    MQS --> GPT4
+    MC --> MLS
+    MLS --> Claude
+    
+    %% Local Storage
+    TR --> EM
+    VD --> EM
+    EM --> VC
+    VC --> VS
+    VD --> MS
+    TR --> MS
+    
+    %% Clip Generation
+    VS --> CE
+    MS --> CE
+    CE --> CL
+    
+    %% Data Sources
+    VF --> VM
+    
+    classDef local fill:#e1f5fe
+    classDef mcp fill:#f3e5f5
+    classDef cursor fill:#e8f5e8
+    classDef data fill:#fff3e0
+    
+    class VM,VP,AT,VS,MS,CE,EM local
+    class MC,MVS,MLS,MQS mcp
+    class GPT4V,GPT4,Claude cursor
+    class VF,FR,AU,TR,VD,VC,MD,CL data
+                </div>
+            </div>
+            
+            <!-- Tech Stack Summary -->
+            <div class="tech-stack">
+                <h3>Key Technologies & Resource Usage</h3>
+                <div class="tech-list">
+                    <div class="tech-item">
+                        <div class="tech-category">Local Processing</div>
+                        Python, ffmpeg, OpenCV, Whisper-tiny
+                    </div>
+                    <div class="tech-item">
+                        <div class="tech-category">Storage</div>
+                        ChromaDB, SQLite, MiniLM embeddings
+                    </div>
+                    <div class="tech-item">
+                        <div class="tech-category">MCP Bridge</div>
+                        MCP Client, HTTP communication
+                    </div>
+                    <div class="tech-item">
+                        <div class="tech-category">Cursor Pro Models</div>
+                        GPT-4V, GPT-4, Claude 3.5 Sonnet
+                    </div>
+                    <div class="tech-item">
+                        <div class="tech-category">Memory Usage</div>
+                        ~2.5GB RAM total (lightweight!)
+                    </div>
+                    <div class="tech-item">
+                        <div class="tech-category">Cost</div>
+                        $0 extra (uses Cursor Pro subscription)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'cardinal'
+            },
+            journey: {
+                diagramMarginX: 50,
+                diagramMarginY: 10,
+                actorMargin: 50,
+                width: 150,
+                height: 65,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 35,
+                mirrorActors: true,
+                bottomMarginAdj: 1,
+                useMaxWidth: true,
+                rightAngles: false
+            }
+        });
+    </script>
+</body>
+</html> 
