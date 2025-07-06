@@ -1,0 +1,253 @@
+# Default Configuration for MCP Video RAG System
+# This file contains the default settings for all system components
+
+# System Information
+system:
+  name: "MCP Video RAG System"
+  version: "1.0.0"
+  description: "Video Retrieval-Augmented Generation using Model Context Protocol"
+  
+# Storage Configuration
+storage:
+  # Database settings
+  database:
+    type: "sqlite"
+    path: "data/video_rag.db"
+    connection_pool_size: 10
+    timeout: 30
+    
+  # File storage settings
+  files:
+    video_storage_path: "data/videos"
+    clips_storage_path: "data/clips"
+    frames_storage_path: "data/frames"
+    temp_storage_path: "data/temp"
+    max_file_size_mb: 1000
+    allowed_formats: ["mp4", "avi", "mkv", "mov", "webm"]
+    
+  # Backup settings
+  backup:
+    enabled: true
+    interval_hours: 24
+    retention_days: 30
+    backup_path: "data/backups"
+
+# MCP (Model Context Protocol) Configuration
+mcp:
+  # Connection settings
+  connection:
+    host: "localhost"
+    port: 3000
+    timeout: 30
+    retry_attempts: 3
+    retry_delay: 1
+    
+  # Model settings
+  models:
+    text_model: "claude-3-sonnet-20240229"
+    vision_model: "claude-3-sonnet-20240229"
+    embedding_model: "text-embedding-3-large"
+    
+  # API settings
+  api:
+    max_requests_per_minute: 60
+    max_tokens_per_request: 4096
+    temperature: 0.7
+    top_p: 0.9
+
+# Video Processing Configuration
+processing:
+  # Video processing settings
+  video:
+    frame_extraction_interval: 1.0  # seconds
+    frame_quality: "medium"  # low, medium, high
+    max_duration_minutes: 120
+    ffmpeg_path: "ffmpeg"  # path to ffmpeg executable
+    
+  # Audio processing settings
+  audio:
+    sample_rate: 16000
+    channels: 1
+    format: "wav"
+    whisper_model: "base"  # tiny, base, small, medium, large
+    
+  # Visual analysis settings
+  visual:
+    scene_detection_threshold: 0.3
+    object_detection_confidence: 0.5
+    max_objects_per_frame: 10
+    
+  # Processing limits
+  limits:
+    max_concurrent_jobs: 4
+    max_queue_size: 50
+    job_timeout_minutes: 30
+
+# Vector Store Configuration
+vector_store:
+  # Vector database settings
+  database:
+    type: "chroma"  # chroma, faiss, or pinecone
+    path: "data/vector_store"
+    collection_name: "video_rag_embeddings"
+    
+  # Embedding settings
+  embeddings:
+    dimension: 1536
+    similarity_metric: "cosine"
+    batch_size: 100
+    
+  # Search settings
+  search:
+    default_limit: 10
+    max_limit: 100
+    default_threshold: 0.7
+    enable_reranking: true
+
+# Search and Retrieval Configuration
+search:
+  # Search engine settings
+  engine:
+    type: "hybrid"  # semantic, keyword, hybrid
+    enable_caching: true
+    cache_ttl_minutes: 60
+    
+  # Ranking settings
+  ranking:
+    semantic_weight: 0.7
+    keyword_weight: 0.3
+    temporal_boost: 0.1
+    
+  # Result settings
+  results:
+    default_limit: 10
+    max_limit: 50
+    include_snippets: true
+    snippet_length: 200
+
+# Logging Configuration
+logging:
+  # Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Console logging
+  console:
+    enabled: true
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+  # File logging
+  file:
+    enabled: true
+    path: "logs/video_rag.log"
+    max_size_mb: 10
+    backup_count: 5
+    rotation: "time"  # time or size
+    
+  # Structured logging
+  structured:
+    enabled: false
+    format: "json"
+    
+  # Component-specific log levels
+  components:
+    video_processor: "DEBUG"
+    mcp_bridge: "INFO"
+    vector_store: "INFO"
+    search_engine: "INFO"
+
+# Security Configuration
+security:
+  # API security
+  api:
+    enable_authentication: false
+    api_key_header: "X-API-Key"
+    rate_limiting: true
+    
+  # File security
+  files:
+    enable_virus_scanning: false
+    quarantine_path: "data/quarantine"
+    
+  # Data privacy
+  privacy:
+    enable_data_anonymization: false
+    pii_detection: false
+
+# Performance Configuration
+performance:
+  # CPU settings
+  cpu:
+    max_cores: 4
+    thread_pool_size: 8
+    
+  # Memory settings
+  memory:
+    max_memory_mb: 4096
+    enable_memory_monitoring: true
+    
+  # Cache settings
+  cache:
+    enable_caching: true
+    max_cache_size_mb: 1024
+    ttl_minutes: 60
+    
+  # Optimization settings
+  optimization:
+    enable_batch_processing: true
+    batch_size: 10
+    enable_gpu_acceleration: false
+
+# Development Configuration
+development:
+  # Debug settings
+  debug:
+    enabled: false
+    verbose_logging: false
+    save_intermediate_results: false
+    
+  # Testing settings
+  testing:
+    use_mock_services: false
+    test_data_path: "tests/data"
+    
+  # Profiling settings
+  profiling:
+    enabled: false
+    output_path: "profiling_results"
+
+# Feature Flags
+features:
+  # Experimental features
+  experimental:
+    enable_real_time_processing: false
+    enable_multi_language_support: false
+    enable_advanced_scene_detection: false
+    
+  # Optional features
+  optional:
+    enable_web_interface: false
+    enable_api_server: false
+    enable_monitoring_dashboard: false
+
+# Integration Configuration
+integrations:
+  # External services
+  external:
+    enable_cloud_storage: false
+    enable_cdn: false
+    enable_external_embedding_service: false
+    
+  # Notification settings
+  notifications:
+    email:
+      enabled: false
+      smtp_host: ""
+      smtp_port: 587
+      
+    webhook:
+      enabled: false
+      url: ""
+      
+    slack:
+      enabled: false
+      webhook_url: "" 
