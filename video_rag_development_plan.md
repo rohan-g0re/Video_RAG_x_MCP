@@ -219,10 +219,7 @@ QA_CHAIN = RetrievalQA.from_chain_type(
 
 ## Future Enhancements (Post‑MVP)
 
-1. **Re‑ranker**: integrate `bge-reranker-large` for audio chunks.
-2. **Scene Detect**: hybrid 10 s grid + scene cut for better visuals.
-3. **Streaming mode**: WebSocket endpoint for continuous query.
-4. **UI**: React front‑end with embedded `<video>` + timeline markers.
+1. **UI**: React front‑end with embedded `<video>` + timeline markers.
 
 ---
 
