@@ -2,11 +2,11 @@
 """
 Phase 1-B Enhanced: Semantic-Aware Transcript Segmentation
 
-Improved chunking approach that:
+Simplified chunking approach that:
 - Uses adaptive segment lengths (5-15 seconds) based on content
 - Preserves punctuation and capitalization for readable captions  
-- Respects sentence boundaries and natural speech pauses
-- Creates rich metadata for better retrieval
+- Respects sentence boundaries only (no pause or topic detection)
+- Adds 1-second overlap between segments for better context
 """
 
 import os
@@ -26,7 +26,7 @@ class SemanticTextProcessor:
     """Handles smart text processing while preserving readability."""
     
     def __init__(self):
-        # Patterns for sentence detection
+        # Patterns for sentence detection (punctuation only)
         self.sentence_endings = re.compile(r'[.!?]+')
         self.quote_endings = re.compile(r'[.!?]+["\']')
         
@@ -47,44 +47,26 @@ class SemanticTextProcessor:
         
         return cleaned
     
-    def is_sentence_boundary(self, word: str, next_word_start: float, current_word_end: float) -> bool:
-        """Check if this word represents a sentence boundary."""
-        # Check for sentence-ending punctuation
-        has_sentence_end = bool(self.sentence_endings.search(word))
-        
-        # Check for significant pause (>0.5s indicates sentence boundary)
-        has_pause = next_word_start - current_word_end > 0.5
-        
-        return has_sentence_end or has_pause
-    
-    def detect_topic_change(self, words: List[str], window_size: int = 5) -> bool:
-        """Simple topic change detection based on vocabulary shift."""
-        if len(words) < window_size * 2:
-            return False
-            
-        # Compare word overlap between first and last parts of window
-        first_half = set(words[:window_size])
-        second_half = set(words[-window_size:])
-        
-        overlap = len(first_half.intersection(second_half))
-        total_unique = len(first_half.union(second_half))
-        
-        # Low overlap suggests topic change
-        return (overlap / total_unique) < 0.3 if total_unique > 0 else False
+    def is_sentence_boundary(self, word: str) -> bool:
+        """Check if this word represents a sentence boundary (punctuation only)."""
+        # Check for sentence-ending punctuation only
+        return bool(self.sentence_endings.search(word))
 
 
 class SemanticTranscriptSegmenter:
-    """Creates semantic-aware segments with natural boundaries."""
+    """Creates semantic-aware segments with natural boundaries and overlap."""
     
-    def __init__(self, min_duration: float = 5.0, max_duration: float = 15.0, target_duration: float = 10.0):
+    def __init__(self, min_duration: float = 7.0, max_duration: float = 15.0, 
+                 target_duration: float = 10.0, overlap_duration: float = 1.0):
         self.min_duration = min_duration
         self.max_duration = max_duration  
         self.target_duration = target_duration
+        self.overlap_duration = overlap_duration
         self.text_processor = SemanticTextProcessor()
         
     def segment_transcript(self, transcript_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create semantic-aware segments with natural boundaries.
+        Create semantic-aware segments with natural boundaries and overlap.
         """
         words = transcript_data.get('words', [])
         video_id = transcript_data.get('video_id', 'unknown')
@@ -96,20 +78,25 @@ class SemanticTranscriptSegmenter:
         
         logger.info(f"Creating semantic segments for {duration:.2f}s video with {len(words)} words")
         
-        segments = self._create_semantic_segments(words, duration)
+        # Create base segments without overlap
+        base_segments = self._create_semantic_segments(words, duration)
+        
+        # Add overlap to segments
+        overlapped_segments = self._add_overlap_to_segments(base_segments, words, duration)
         
         # Create output data structure
         output_data = {
             'video_id': video_id,
             'total_duration': duration,
-            'segmentation_method': 'semantic_adaptive',
+            'segmentation_method': 'semantic_adaptive_overlap',
             'segment_config': {
                 'min_duration': self.min_duration,
                 'max_duration': self.max_duration,
-                'target_duration': self.target_duration
+                'target_duration': self.target_duration,
+                'overlap_duration': self.overlap_duration
             },
-            'total_segments': len(segments),
-            'segments': segments
+            'total_segments': len(overlapped_segments),
+            'segments': overlapped_segments
         }
         
         # Enhanced validation
@@ -118,7 +105,7 @@ class SemanticTranscriptSegmenter:
         return output_data
     
     def _create_semantic_segments(self, words: List[Dict], total_duration: float) -> List[Dict]:
-        """Create segments using semantic boundaries."""
+        """Create segments using simplified semantic boundaries (punctuation only)."""
         segments = []
         current_segment_words = []
         segment_start_time = 0.0
@@ -134,44 +121,25 @@ class SemanticTranscriptSegmenter:
             is_max_duration_exceeded = current_duration >= self.max_duration
             is_target_duration_reached = current_duration >= self.target_duration
             
-            # Check for natural boundaries
-            is_sentence_end = False
-            has_long_pause = False
+            # Check for sentence boundary (punctuation only)
+            is_sentence_end = self.text_processor.is_sentence_boundary(word['word'])
             
-            if i < len(words) - 1:  # Not the last word
-                next_word = words[i + 1]
-                is_sentence_end = self.text_processor.is_sentence_boundary(
-                    word['word'], next_word['start'], word['end']
-                )
-                has_long_pause = next_word['start'] - word['end'] > 0.7
-            
-            # Topic change detection (simplified)
-            has_topic_change = False
-            if len(current_segment_words) > 10:
-                recent_words = [w['word'] for w in current_segment_words[-10:]]
-                has_topic_change = self.text_processor.detect_topic_change(recent_words)
-            
-            # Decision logic for segmentation
+            # Simplified decision logic
             should_segment = False
             
             if is_max_duration_exceeded:
                 should_segment = True
-                reason = "max_duration_exceeded"
-            elif is_min_duration_met and (is_sentence_end or has_long_pause):
+            elif is_min_duration_met and is_sentence_end:
                 should_segment = True  
-                reason = "natural_boundary"
-            elif is_target_duration_reached and (is_sentence_end or has_topic_change):
+            elif is_target_duration_reached and is_sentence_end:
                 should_segment = True
-                reason = "target_duration_with_boundary"
             elif i == len(words) - 1:  # Last word
                 should_segment = True
-                reason = "end_of_transcript"
             
             if should_segment:
                 segment = self._create_segment_from_words(
                     current_segment_words, 
-                    segment_start_time,
-                    reason
+                    segment_start_time
                 )
                 segments.append(segment)
                 
@@ -181,7 +149,53 @@ class SemanticTranscriptSegmenter:
         
         return segments
     
-    def _create_segment_from_words(self, words: List[Dict], start_time: float, reason: str) -> Dict[str, Any]:
+    def _add_overlap_to_segments(self, segments: List[Dict], words: List[Dict], 
+                                total_duration: float) -> List[Dict]:
+        """Add overlap to segments by extending start/end times."""
+        if not segments:
+            return segments
+        
+        overlapped_segments = []
+        
+        for i, segment in enumerate(segments):
+            # Calculate overlapped timing
+            original_start = segment['start']
+            original_end = segment['end']
+            
+            # Extend backward by overlap_duration (but not before 0)
+            overlap_start = max(0.0, original_start - self.overlap_duration)
+            
+            # Extend forward by overlap_duration (but not beyond video end)
+            overlap_end = min(total_duration, original_end + self.overlap_duration)
+            
+            # Find words that fall within the overlapped time range
+            overlapped_words = []
+            for word in words:
+                if (word['start'] >= overlap_start and word['end'] <= overlap_end):
+                    overlapped_words.append(word)
+            
+            # Create overlapped segment
+            if overlapped_words:
+                overlapped_segment = self._create_segment_from_words(
+                    overlapped_words,
+                    overlap_start,
+                    force_timing=(overlap_start, overlap_end)
+                )
+                # Add overlap metadata
+                overlapped_segment['metadata']['original_start'] = original_start
+                overlapped_segment['metadata']['original_end'] = original_end
+                overlapped_segment['metadata']['overlap_added'] = self.overlap_duration
+            else:
+                # Fallback to original segment if no words found in overlap range
+                overlapped_segment = segment
+                overlapped_segment['metadata']['overlap_added'] = 0.0
+            
+            overlapped_segments.append(overlapped_segment)
+        
+        return overlapped_segments
+    
+    def _create_segment_from_words(self, words: List[Dict], start_time: float, 
+                                  force_timing: Tuple[float, float] = None) -> Dict[str, Any]:
         """Create a segment object from a list of words."""
         if not words:
             return {
@@ -191,9 +205,7 @@ class SemanticTranscriptSegmenter:
                 'word_count': 0,
                 'metadata': {
                     'duration': 0.0,
-                    'segmentation_reason': reason,
-                    'sentence_count': 0,
-                    'has_pause': False
+                    'sentence_count': 0
                 }
             }
         
@@ -202,21 +214,18 @@ class SemanticTranscriptSegmenter:
         caption = self.text_processor.clean_text_lightly(raw_text)
         
         # Calculate timing
-        actual_start = words[0]['start']
-        actual_end = words[-1]['end']
+        if force_timing:
+            actual_start, actual_end = force_timing
+        else:
+            actual_start = words[0]['start']
+            actual_end = words[-1]['end']
+        
         duration = actual_end - actual_start
         
         # Analyze content
         sentence_count = len(self.text_processor.sentence_endings.findall(caption))
         if sentence_count == 0 and caption:  # If no clear sentences, count as 1
             sentence_count = 1
-            
-        # Check for significant pauses within segment
-        has_internal_pause = False
-        for i in range(len(words) - 1):
-            if words[i + 1]['start'] - words[i]['end'] > 0.5:
-                has_internal_pause = True
-                break
         
         # Detect content type
         content_type = self._classify_content(caption)
@@ -228,9 +237,7 @@ class SemanticTranscriptSegmenter:
             'word_count': len(words),
             'metadata': {
                 'duration': round(duration, 2),
-                'segmentation_reason': reason,
                 'sentence_count': sentence_count,
-                'has_pause': has_internal_pause,
                 'content_type': content_type,
                 'timing_formatted': f"{self._format_timestamp(actual_start)} - {self._format_timestamp(actual_end)}"
             },
@@ -266,7 +273,7 @@ class SemanticTranscriptSegmenter:
         return {
             'video_id': video_id,
             'total_duration': duration,
-            'segmentation_method': 'semantic_adaptive',
+            'segmentation_method': 'semantic_adaptive_overlap',
             'total_segments': 0,
             'segments': []
         }
@@ -279,27 +286,24 @@ class SemanticTranscriptSegmenter:
             logger.warning("No segments created")
             return
         
-        # Check coverage
-        total_covered = segments[-1]['end'] - segments[0]['start']
-        coverage = total_covered / expected_duration
-        
         # Check duration distribution
         durations = [seg['metadata']['duration'] for seg in segments]
         avg_duration = sum(durations) / len(durations)
         
-        # Check for gaps
-        gaps = []
+        # Check for overlaps
+        overlaps = []
         for i in range(len(segments) - 1):
-            gap = segments[i + 1]['start'] - segments[i]['end']
-            if gap > 0.1:  # 100ms gap tolerance
-                gaps.append(gap)
+            if segments[i]['end'] > segments[i + 1]['start']:
+                overlap = segments[i]['end'] - segments[i + 1]['start']
+                overlaps.append(overlap)
         
         logger.info(f"✓ Semantic segmentation validation:")
         logger.info(f"  • Segments created: {len(segments)}")
-        logger.info(f"  • Coverage: {coverage:.1%} of video")
         logger.info(f"  • Average duration: {avg_duration:.1f}s")
         logger.info(f"  • Duration range: {min(durations):.1f}s - {max(durations):.1f}s")
-        logger.info(f"  • Gaps detected: {len(gaps)}")
+        logger.info(f"  • Overlaps detected: {len(overlaps)} (expected with 1s overlap)")
+        if overlaps:
+            logger.info(f"  • Average overlap: {sum(overlaps)/len(overlaps):.1f}s")
         
         # Quality metrics
         readable_segments = sum(1 for seg in segments if seg['caption'] and len(seg['caption']) > 10)
@@ -307,16 +311,17 @@ class SemanticTranscriptSegmenter:
 
 
 def process_transcript_file_semantic(input_file: str, output_file: str = None, 
-                                   min_duration: float = 5.0, max_duration: float = 15.0) -> Dict[str, Any]:
+                                   min_duration: float = 7.0, max_duration: float = 15.0,
+                                   overlap_duration: float = 1.0) -> Dict[str, Any]:
     """
-    Process a transcript JSON file with semantic segmentation.
+    Process a transcript JSON file with simplified semantic segmentation and overlap.
     """
     # Load input transcript
     with open(input_file, 'r', encoding='utf-8') as f:
         transcript_data = json.load(f)
     
     # Create semantic segmenter
-    segmenter = SemanticTranscriptSegmenter(min_duration, max_duration)
+    segmenter = SemanticTranscriptSegmenter(min_duration, max_duration, overlap_duration=overlap_duration)
     segmented_data = segmenter.segment_transcript(transcript_data)
     
     # Determine output file path
@@ -334,14 +339,16 @@ def process_transcript_file_semantic(input_file: str, output_file: str = None,
 
 
 def main():
-    """CLI entry point for semantic transcript segmentation."""
-    parser = argparse.ArgumentParser(description="Create semantic-aware transcript segments")
+    """CLI entry point for simplified semantic transcript segmentation."""
+    parser = argparse.ArgumentParser(description="Create simplified semantic-aware transcript segments with overlap")
     parser.add_argument("input_file", help="Path to input transcript JSON file")
     parser.add_argument("--output-file", "-o", help="Path to output segmented JSON file")
     parser.add_argument("--min-duration", "-min", type=float, default=5.0,
                        help="Minimum segment duration in seconds (default: 5.0)")
     parser.add_argument("--max-duration", "-max", type=float, default=15.0,
                        help="Maximum segment duration in seconds (default: 15.0)")
+    parser.add_argument("--overlap-duration", "-overlap", type=float, default=1.0,
+                       help="Overlap duration in seconds (default: 1.0)")
     parser.add_argument("--verbose", "-v", action="store_true",
                        help="Enable verbose logging")
     
@@ -355,13 +362,15 @@ def main():
         args.input_file,
         args.output_file,
         args.min_duration,
-        args.max_duration
+        args.max_duration,
+        args.overlap_duration
     )
     
     print(f"✓ Successfully created semantic segments: {args.input_file}")
     print(f"✓ Segments created: {result['total_segments']}")
     print(f"✓ Duration: {result['total_duration']:.2f} seconds")
     print(f"✓ Method: {result['segmentation_method']}")
+    print(f"✓ Overlap: {args.overlap_duration}s")
 
 
 if __name__ == "__main__":

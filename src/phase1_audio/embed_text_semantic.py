@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Phase 1-C Enhanced: Text Embedding for Semantic Segments
+Phase 1-C Enhanced: Text Embedding for Simplified Semantic Segments
 
-Updated text embedding that works with semantic-aware segmentation.
-Handles the new 'caption' field and enhanced metadata structure.
+Updated text embedding that works with simplified semantic-aware segmentation.
+Handles the simplified metadata structure without pause/topic detection.
 """
 
 import os
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class SemanticEmbeddingProcessor:
-    """Enhanced text embedding processor for semantic segments."""
+    """Enhanced text embedding processor for simplified semantic segments."""
     
     def __init__(self, clip_model: str = "ViT-B-32", batch_size: int = 32):
         self.clip_model = clip_model
@@ -92,7 +92,7 @@ class SemanticEmbeddingProcessor:
     
     def process_semantic_segments(self, segmented_data: Dict[str, Any], 
                                 output_file: str = None) -> Dict[str, Any]:
-        """Process semantic segmented transcript and generate embeddings."""
+        """Process simplified semantic segmented transcript and generate embeddings."""
         
         segments = segmented_data.get('segments', [])
         video_id = segmented_data.get('video_id', 'unknown')
@@ -101,7 +101,7 @@ class SemanticEmbeddingProcessor:
             logger.warning("No segments found in transcript")
             return {'status': 'error', 'message': 'No segments to process'}
         
-        logger.info(f"Processing {len(segments)} semantic segments for video: {video_id}")
+        logger.info(f"Processing {len(segments)} simplified semantic segments for video: {video_id}")
         
         # Extract captions and prepare enhanced metadata
         captions = []
@@ -119,14 +119,16 @@ class SemanticEmbeddingProcessor:
                 'segment_index': i,
                 'word_count': segment.get('word_count', 0),
                 'path': None,  # No path for audio segments
-                # Add semantic-specific metadata
-                'segmentation_method': segmented_data.get('segmentation_method', 'semantic_adaptive'),
+                # Add semantic-specific metadata (simplified)
+                'segmentation_method': segmented_data.get('segmentation_method', 'semantic_adaptive_overlap'),
                 'duration': segment.get('metadata', {}).get('duration', 0.0),
                 'content_type': segment.get('metadata', {}).get('content_type', 'unknown'),
                 'sentence_count': segment.get('metadata', {}).get('sentence_count', 0),
-                'segmentation_reason': segment.get('metadata', {}).get('segmentation_reason', 'unknown'),
                 'timing_formatted': segment.get('metadata', {}).get('timing_formatted', ''),
-                'has_pause': segment.get('metadata', {}).get('has_pause', False)
+                # Add overlap information if available
+                'overlap_added': segment.get('metadata', {}).get('overlap_added', 0.0),
+                'original_start': segment.get('metadata', {}).get('original_start'),
+                'original_end': segment.get('metadata', {}).get('original_end')
             }
             metadatas.append(metadata)
         
@@ -159,7 +161,7 @@ class SemanticEmbeddingProcessor:
         results = {
             'status': 'success',
             'video_id': video_id,
-            'segmentation_method': segmented_data.get('segmentation_method', 'semantic_adaptive'),
+            'segmentation_method': segmented_data.get('segmentation_method', 'semantic_adaptive_overlap'),
             'segments_processed': len(segments),
             'embeddings_generated': len(embeddings),
             'embedding_dimension': self.embedding_dim,
@@ -167,12 +169,10 @@ class SemanticEmbeddingProcessor:
             'performance_target_seconds': max_time,
             'performance_ok': performance_ok,
             'embeddings_stored': len(self.stored_embeddings),
-            # Semantic-specific metrics
+            # Simplified semantic-specific metrics
             'content_type_distribution': self._analyze_content_types(segments),
             'avg_segment_duration': sum(seg.get('metadata', {}).get('duration', 0) for seg in segments) / len(segments),
-            'natural_boundaries': sum(1 for seg in segments 
-                                    if seg.get('metadata', {}).get('segmentation_reason') in 
-                                    ['natural_boundary', 'target_duration_with_boundary']),
+            'overlap_enabled': any(seg.get('metadata', {}).get('overlap_added', 0) > 0 for seg in segments),
             'readability_score': self._calculate_readability_score(segments)
         }
         
@@ -205,7 +205,7 @@ class SemanticEmbeddingProcessor:
 
 def process_semantic_segmented_file(input_file: str, output_file: str = None, 
                                   clip_model: str = "ViT-B-32", batch_size: int = 32) -> Dict[str, Any]:
-    """Process a semantic segmented transcript file and generate embeddings."""
+    """Process a simplified semantic segmented transcript file and generate embeddings."""
     
     # Load segmented transcript
     with open(input_file, 'r', encoding='utf-8') as f:
@@ -221,8 +221,8 @@ def process_semantic_segmented_file(input_file: str, output_file: str = None,
 
 
 def main():
-    """CLI entry point for semantic text embedding."""
-    parser = argparse.ArgumentParser(description="Generate CLIP embeddings for semantic segments")
+    """CLI entry point for simplified semantic text embedding."""
+    parser = argparse.ArgumentParser(description="Generate CLIP embeddings for simplified semantic segments")
     parser.add_argument("input_file", help="Path to semantic segmented transcript JSON file")
     parser.add_argument("--output-file", "-o", help="Path to save embeddings JSON file")
     parser.add_argument("--clip-model", default="ViT-B-32", 
@@ -260,7 +260,7 @@ def main():
         print(f"✓ Processing time: {results['processing_time_seconds']:.2f}s")
         print(f"✓ Performance: {'PASS' if results['performance_ok'] else 'FAIL'}")
         print(f"✓ Readability score: {results['readability_score']:.1%}")
-        print(f"✓ Natural boundaries: {results['natural_boundaries']}/{results['segments_processed']}")
+        print(f"✓ Overlap enabled: {results['overlap_enabled']}")
         print(f"✓ Avg segment duration: {results['avg_segment_duration']:.1f}s")
         
         print("\n📊 Content Type Distribution:")
