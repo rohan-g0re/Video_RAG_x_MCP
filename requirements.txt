@@ -1,0 +1,31 @@
+# Audio processing and transcription
+openai-whisper
+ffmpeg-python
+
+# Machine learning and embeddings
+open-clip-torch
+torch
+torchvision
+torchaudio
+
+# Data processing
+numpy
+pandas
+
+# Database and storage
+chromadb
+grpcio
+grpcio-tools
+
+# Utilities
+tqdm
+python-dotenv
+pydantic
+
+# Testing
+pytest
+pytest-cov
+
+# Development
+black
+flake8 
