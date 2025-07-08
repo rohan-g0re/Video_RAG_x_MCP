@@ -75,3 +75,5 @@ models/
 
 # FFmpeg temp files
 temp_audio.* 
+
+data/
