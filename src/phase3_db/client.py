@@ -10,8 +10,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import chromadb
-from chromadb.config import Settings
-from chromadb.utils import embedding_functions
+from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE, Settings
 
 from .models import VideoSegment, EmbeddingMetadata
 
@@ -45,21 +44,20 @@ class VectorStoreClient:
         logger.info(f"Initializing VectorStoreClient with persist_directory={persist_directory}")
         
     def _initialize_client(self) -> None:
-        """Initialize ChromaDB client with local persistence."""
+        """Initialize ChromaDB client with local persistence using new API."""
         if self._client is not None:
             return
             
         logger.info("Initializing ChromaDB client")
         
-        # Configure ChromaDB for local persistence without Docker
-        settings = Settings(
-            chroma_db_impl="duckdb+parquet",
-            persist_directory=str(self.persist_directory),
-            anonymized_telemetry=False  # Disable telemetry for privacy
-        )
-        
         try:
-            self._client = chromadb.Client(settings)
+            # Use new PersistentClient API instead of deprecated Client(settings)
+            self._client = chromadb.PersistentClient(
+                path=str(self.persist_directory),
+                settings=Settings(anonymized_telemetry=False),  # Disable telemetry for privacy
+                tenant=DEFAULT_TENANT,
+                database=DEFAULT_DATABASE
+            )
             logger.info("ChromaDB client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB client: {e}")
@@ -73,19 +71,16 @@ class VectorStoreClient:
         self._initialize_client()
         
         try:
-            # Try to get existing collection first
-            self._collection = self._client.get_collection(name=self.collection_name)
-            logger.info(f"Retrieved existing collection: {self.collection_name}")
-        except ValueError:
-            # Collection doesn't exist, create it
-            logger.info(f"Creating new collection: {self.collection_name}")
-            
-            # Create collection without embedding function (we provide embeddings directly)
-            self._collection = self._client.create_collection(
+            # Use get_or_create_collection which is safer and handles both cases
+            self._collection = self._client.get_or_create_collection(
                 name=self.collection_name,
                 metadata={"description": "Video RAG segments with unified audio/visual embeddings"}
             )
-            logger.info(f"Created collection: {self.collection_name}")
+            logger.info(f"Got or created collection: {self.collection_name}")
+            
+        except Exception as e:
+            logger.error(f"Failed to get or create collection {self.collection_name}: {e}")
+            raise RuntimeError(f"Collection access failed: {e}")
             
         return self._collection
     
@@ -182,17 +177,40 @@ class VectorStoreClient:
                 include=['metadatas', 'documents', 'distances', 'embeddings']
             )
             
-            # Format results
+            # Format results - safely handle arrays
             formatted_results = []
-            if results['ids'] and results['ids'][0]:  # Check if we have results
+            # Safe checking - avoid array boolean evaluation
+            has_results = (
+                results is not None
+                and 'ids' in results 
+                and results['ids'] is not None
+                and len(results['ids']) > 0 
+                and results['ids'][0] is not None
+                and len(results['ids'][0]) > 0
+            )
+            
+            if has_results:
                 for i in range(len(results['ids'][0])):
+                    # Safely get embedding - handle potential numpy arrays
+                    embedding = None
+                    if (results.get('embeddings') is not None 
+                        and len(results['embeddings']) > 0 
+                        and len(results['embeddings'][0]) > i
+                        and results['embeddings'][0][i] is not None):
+                        raw_embedding = results['embeddings'][0][i]
+                        # Convert numpy arrays to lists safely
+                        if hasattr(raw_embedding, 'tolist'):
+                            embedding = raw_embedding.tolist()
+                        else:
+                            embedding = raw_embedding
+                    
                     segment_data = {
                         'id': results['ids'][0][i],
                         'metadata': results['metadatas'][0][i],
                         'document': results['documents'][0][i],
                         'distance': results['distances'][0][i],
                         'similarity_score': 1 - results['distances'][0][i],  # Convert distance to similarity
-                        'embedding': results['embeddings'][0][i] if results['embeddings'] else None
+                        'embedding': embedding
                     }
                     formatted_results.append(segment_data)
             
@@ -277,13 +295,33 @@ class VectorStoreClient:
             )
             
             segments = []
-            if results['ids']:
+            # Safe checking - avoid array boolean evaluation
+            has_results = (
+                results is not None 
+                and 'ids' in results 
+                and results['ids'] is not None 
+                and len(results['ids']) > 0
+            )
+            
+            if has_results:
                 for i in range(len(results['ids'])):
+                    # Safely get embedding - handle potential numpy arrays
+                    embedding = None
+                    if (results.get('embeddings') is not None 
+                        and len(results['embeddings']) > i 
+                        and results['embeddings'][i] is not None):
+                        raw_embedding = results['embeddings'][i]
+                        # Convert numpy arrays to lists safely
+                        if hasattr(raw_embedding, 'tolist'):
+                            embedding = raw_embedding.tolist()
+                        else:
+                            embedding = raw_embedding
+                    
                     segment_data = {
                         'id': results['ids'][i],
                         'metadata': results['metadatas'][i],
                         'document': results['documents'][i],
-                        'embedding': results['embeddings'][i] if results['embeddings'] else None
+                        'embedding': embedding
                     }
                     segments.append(segment_data)
             

@@ -139,9 +139,17 @@ class VectorRetriever:
             for i, result in enumerate(search_results["results"]):
                 # Reconstruct VideoSegment from result
                 metadata = EmbeddingMetadata(**result["metadata"])
+                
+                # Safely handle embedding - ensure it's a list
+                embedding = result.get("embedding", [])
+                if hasattr(embedding, 'tolist'):
+                    embedding = embedding.tolist()
+                elif embedding is None:
+                    embedding = []
+                
                 segment = VideoSegment(
                     id=result["id"],
-                    embedding=result["embedding"] if result["embedding"] else [],
+                    embedding=embedding,
                     metadata=metadata,
                     content=result["document"]
                 )
@@ -187,26 +195,31 @@ class VectorRetriever:
         Returns:
             ChromaDB where filter dictionary or None
         """
-        where_filter = {}
+        filters = []
         
         # Video ID filter
         if query_request.video_id_filter:
-            where_filter["video_id"] = query_request.video_id_filter
+            filters.append({"video_id": query_request.video_id_filter})
         
         # Modality filter
         if query_request.modality_filter:
-            where_filter["modality"] = query_request.modality_filter
+            filters.append({"modality": query_request.modality_filter})
         
         # Time range filter (requires special handling)
         if query_request.time_range_filter:
             start_time, end_time = query_request.time_range_filter
             # Find segments that overlap with the time range
-            where_filter["$and"] = [
-                {"start": {"$lte": end_time}},    # Segment starts before range ends
-                {"end": {"$gte": start_time}}     # Segment ends after range starts
-            ]
+            filters.append({"start": {"$lte": end_time}})    # Segment starts before range ends
+            filters.append({"end": {"$gte": start_time}})    # Segment ends after range starts
         
-        return where_filter if where_filter else None
+        # Combine filters properly for ChromaDB
+        if len(filters) == 0:
+            return None
+        elif len(filters) == 1:
+            return filters[0]
+        else:
+            # Use $and for multiple filters
+            return {"$and": filters}
     
     def search_by_text(self, query_text: str, k: int = 10, 
                       video_id: Optional[str] = None,
@@ -272,13 +285,21 @@ class VectorRetriever:
         segments = []
         for seg_data in raw_segments:
             # Filter by modality if specified
-            if modality and seg_data["metadata"].get("modality") != modality:
+            if modality and seg_data.get("metadata", {}).get("modality") != modality:
                 continue
                 
             metadata = EmbeddingMetadata(**seg_data["metadata"])
+            
+            # Safely handle embedding - ensure it's a list
+            embedding = seg_data.get("embedding", [])
+            if hasattr(embedding, 'tolist'):
+                embedding = embedding.tolist()
+            elif embedding is None:
+                embedding = []
+            
             segment = VideoSegment(
                 id=seg_data["id"],
-                embedding=seg_data["embedding"] if seg_data["embedding"] else [],
+                embedding=embedding,
                 metadata=metadata,
                 content=seg_data["document"]
             )

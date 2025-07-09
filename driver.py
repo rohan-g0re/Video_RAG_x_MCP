@@ -28,9 +28,10 @@ from phase1_audio.embed_text_semantic import process_semantic_segmented_file
 # Phase 2 imports  
 from phase2_visual.sample_frames import FrameSampler
 from phase2_visual.embed_frames import FrameEmbedder
+from src.phase3_db import models
 
 # Phase 3 imports (with fallback for ChromaDB issues)
-CHROMADB_AVAILABLE = False
+CHROMADB_AVAILABLE = True
 VectorStoreClient = None
 BatchIngestor = None  
 VectorRetriever = None
@@ -38,12 +39,12 @@ VectorRetriever = None
 try:
     # Try importing Phase 3 components
     sys.path.insert(0, str(Path(__file__).parent / "src" / "phase3_db"))
-    from models import VideoSegment, EmbeddingMetadata
+    from src.phase3_db.models import VideoSegment, EmbeddingMetadata
     
     # Try ChromaDB-dependent components
-    from client import VectorStoreClient
-    from ingest import BatchIngestor
-    from retriever import VectorRetriever
+    from src.phase3_db.client import VectorStoreClient
+    from src.phase3_db.ingest import BatchIngestor
+    from src.phase3_db.retriever import VectorRetriever
     CHROMADB_AVAILABLE = True
     print("✅ ChromaDB components loaded successfully")
     
@@ -53,7 +54,7 @@ except ImportError as e:
     # Load just the models for simulation
     try:
         sys.path.insert(0, str(Path(__file__).parent / "src" / "phase3_db"))
-        from models import VideoSegment, EmbeddingMetadata
+        from src.phase3_db.models import VideoSegment, EmbeddingMetadata
         print("✅ Phase 3 models loaded (simulation mode)")
     except ImportError as e2:
         print(f"❌ Cannot load Phase 3 models: {e2}")
