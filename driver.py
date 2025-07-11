@@ -23,18 +23,26 @@ from phase1_audio.embed_text_semantic import process_semantic_segmented_file
 from phase2_visual.sample_frames import FrameSampler
 from phase2_visual.embed_frames import FrameEmbedder
 
-# Phase 3 and 4 imports
+# Phase 3, 4, and 5 imports
 try:
     from src.phase3_db.client import VectorStoreClient
     from src.phase3_db.ingest import BatchIngestor
     from phase4_retriever import search_videos, Retriever
+    from phase5_generation import QAService
     COMPONENTS_AVAILABLE = True
+    PHASE5_AVAILABLE = True
 except ImportError as e:
     print(f"❌ Required components not available: {e}")
     COMPONENTS_AVAILABLE = False
+    PHASE5_AVAILABLE = False
 
 import logging
-logging.basicConfig(level=logging.WARNING)  # Minimal logging
+# Suppress INFO logs for cleaner terminal output during LLM debugging
+logging.basicConfig(level=logging.ERROR)  # Only show errors
+logging.getLogger("phase1_audio").setLevel(logging.ERROR)
+logging.getLogger("src.phase3_db").setLevel(logging.ERROR)
+logging.getLogger("phase4_retriever").setLevel(logging.ERROR)
+logging.getLogger("src.phase5_generation").setLevel(logging.ERROR)
 
 
 class LeanVideoRAGDriver:
@@ -221,30 +229,50 @@ class LeanVideoRAGDriver:
         return str(filepath)
     
     def interactive_query_loop(self):
-        """Interactive CLI for user queries."""
+        """Interactive CLI for user queries with Phase 5 LLM generation."""
         print("\n" + "="*60)
-        print("🔍 INTERACTIVE QUERY MODE")
+        print("🔍 INTERACTIVE QUERY MODE (with LLM Generation)")
         print("="*60)
         print("Enter natural language queries about your video content.")
-        print("Commands: 'quit', 'exit', 'help', 'stats'")
+        print("Commands: 'quit', 'exit', 'help', 'stats', 'llm' (toggle LLM mode)")
         print("="*60)
         
         if not COMPONENTS_AVAILABLE:
             print("❌ Phase 4 components not available for querying")
             return
         
+        # Initialize retriever
         try:
             retriever = Retriever()
             stats = retriever.get_stats()
             print(f"📊 Database: {stats.total_documents} documents ({stats.audio_documents} audio, {stats.frame_documents} frames)")
-            print()
         except Exception as e:
             print(f"❌ Cannot initialize retriever: {e}")
             return
         
+        # Initialize QA Service for LLM generation
+        qa_service = None
+        llm_mode = True  # Default to LLM mode enabled
+        
+        if PHASE5_AVAILABLE:
+            try:
+                qa_service = QAService(retriever=retriever)
+                print(f"🤖 LLM Generation: ENABLED (ChatGroq Llama-3.1-8b-instant)")
+                print()
+            except Exception as e:
+                print(f"⚠️  LLM Generation unavailable: {e}")
+                print(f"📋 Falling back to retrieval-only mode")
+                llm_mode = False
+                print()
+        else:
+            print(f"⚠️  Phase 5 not available - retrieval-only mode")
+            llm_mode = False
+            print()
+        
         while True:
             try:
-                query = input("🔍 Query: ").strip()
+                mode_indicator = "🤖" if (llm_mode and qa_service) else "📋"
+                query = input(f"{mode_indicator} Query: ").strip()
                 
                 if not query:
                     continue
@@ -254,7 +282,19 @@ class LeanVideoRAGDriver:
                     break
                 
                 if query.lower() == 'help':
-                    print("  • Commands: quit, exit, stats")
+                    print("  • Commands: quit, exit, stats, llm")
+                    print("  • LLM mode: Generate AI answers with citations")
+                    print("  • Retrieval mode: Show raw video segments only")
+                    continue
+                
+                if query.lower() == 'llm':
+                    if qa_service:
+                        llm_mode = not llm_mode
+                        status = "ENABLED" if llm_mode else "DISABLED"
+                        print(f"🤖 LLM Generation: {status}")
+                    else:
+                        print("⚠️  LLM Generation not available")
+                    print()
                     continue
                 
                 if query.lower() == 'stats':
@@ -264,39 +304,85 @@ class LeanVideoRAGDriver:
                     print(f"   Audio segments: {stats.audio_documents}")
                     print(f"   Frame segments: {stats.frame_documents}")
                     print(f"   Videos: {stats.total_videos}")
+                    print(f"   LLM Mode: {'ENABLED' if llm_mode and qa_service else 'DISABLED'}")
                     print()
                     continue
                 
-                # Execute search
+                # Execute search with optional LLM generation
                 start_time = time.time()
-                documents = search_videos(query, k=5)
-                search_time = time.time() - start_time
                 
-                if documents:
-                    print(f"\n✅ Found {len(documents)} results in {search_time:.3f}s:")
-                    
-                    for i, doc in enumerate(documents, 1):
-                        timing = doc.get_timing_info()
-                        modality = doc.metadata.get('modality', 'unknown')
+                if llm_mode and qa_service:
+                    # Phase 5: LLM Generation Mode
+                    try:
+                        from phase5_generation.qa_service import QARequest
+                        import asyncio
                         
-                        print(f"\n   {i}. [{timing}] {modality.upper()}")
+                        # Create QA request
+                        qa_request = QARequest(question=query, k=5)
                         
-                        if doc.is_audio_segment():
-                            content = doc.page_content[:80] + "..." if len(doc.page_content) > 80 else doc.page_content
-                            print(f"      📝 {content}")
-                        else:
-                            print(f"      🖼️  {doc.page_content}")
+                        # Generate LLM response
+                        print(f"\n🤖 Generating AI response for: '{query}'")
+                        response = asyncio.run(qa_service.process_question(qa_request))
                         
-                        # Show key metadata
-                        if 'word_count' in doc.metadata:
-                            print(f"      📊 Words: {doc.metadata['word_count']}")
+                        total_time = time.time() - start_time
+                        
+                        # Display LLM answer
+                        print(f"\n✅ AI Answer (generated in {total_time:.3f}s):")
+                        print("=" * 60)
+                        print(response.answer)
+                        print("=" * 60)
+                        
+                        # Display sources
+                        if response.sources:
+                            print(f"\n📚 Sources ({len(response.sources)} segments):")
+                            for i, source in enumerate(response.sources, 1):
+                                timing = f"{source.start:.1f}s-{source.end:.1f}s"
+                                print(f"   {i}. [{source.video_id}: {timing}] {source.modality.upper()}")
+                                if source.content_preview:
+                                    preview = source.content_preview[:60] + "..." if len(source.content_preview) > 60 else source.content_preview
+                                    print(f"      💬 {preview}")
+                        
+                        # Performance metrics
+                        print(f"\n⏱️  Performance:")
+                        print(f"   Retrieval: {response.retrieval_time_seconds:.3f}s")
+                        print(f"   Generation: {response.generation_time_seconds:.3f}s")
+                        print(f"   Total: {response.processing_time_seconds:.3f}s")
+                        
+                    except Exception as e:
+                        print(f"❌ LLM Generation failed: {e}")
+                        print("📋 Falling back to retrieval mode...")
+                        llm_mode = False
+                
+                if not llm_mode or not qa_service:
+                    # Phase 4: Retrieval-Only Mode  
+                    documents = search_videos(query, k=5)
+                    search_time = time.time() - start_time
                     
-                    # Save to JSON
-                    json_file = self.save_results_to_json(query, documents, search_time)
-                    print(f"\n💾 Results saved to: {json_file}")
-                    
-                else:
-                    print(f"⚠️  No results found in {search_time:.3f}s")
+                    if documents:
+                        print(f"\n✅ Found {len(documents)} results in {search_time:.3f}s:")
+                        
+                        for i, doc in enumerate(documents, 1):
+                            timing = doc.get_timing_info()
+                            modality = doc.metadata.get('modality', 'unknown')
+                            
+                            print(f"\n   {i}. [{timing}] {modality.upper()}")
+                            
+                            if doc.is_audio_segment():
+                                content = doc.page_content[:80] + "..." if len(doc.page_content) > 80 else doc.page_content
+                                print(f"      📝 {content}")
+                            else:
+                                print(f"      🖼️  {doc.page_content}")
+                            
+                            # Show key metadata
+                            if 'word_count' in doc.metadata:
+                                print(f"      📊 Words: {doc.metadata['word_count']}")
+                        
+                        # Save to JSON
+                        json_file = self.save_results_to_json(query, documents, search_time)
+                        print(f"\n💾 Results saved to: {json_file}")
+                        
+                    else:
+                        print(f"⚠️  No results found in {search_time:.3f}s")
             
                 print()
             

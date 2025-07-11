@@ -22,6 +22,12 @@ tqdm
 python-dotenv
 pydantic
 
+# LLM Generation (Phase 5)
+langchain
+langchain-groq
+fastapi
+uvicorn
+
 # Testing
 pytest
 pytest-cov

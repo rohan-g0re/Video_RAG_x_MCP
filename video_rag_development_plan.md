@@ -163,7 +163,7 @@ One **collection** `video_segments` with schema:
 from langchain_groq import ChatGroq
 SYSTEM = "You are a helpful assistant ... always cite timestamp and video ID."  # System prompt template
 DOC_PROMPT = "[{metadata[start]:.2f}-{metadata[end]:.2f}s | {metadata.video_id}] {page_content}"  # Document formatting
-llm = ChatGroq(model="llama3-70b-8192", temperature=0, max_tokens=None, reasoning_format="parsed")  # Llama 70B model (8192-token context):contentReference[oaicite:0]{index=0}
+llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0, max_tokens=None, reasoning_format="parsed")  # Llama 70B model (8192-token context):contentReference[oaicite:0]{index=0}
 QA_CHAIN = RetrievalQA.from_chain_type(
     llm=llm,
     retriever=Retriever(...),
@@ -175,7 +175,11 @@ QA_CHAIN = RetrievalQA.from_chain_type(
 )
 ```
 
-*Using LangChain’s prompt templating, we inject the metadata of retrieved video segments (formatted with timestamps) into the LLM’s input. The **ChatGroq** LLM (a Llama2/Llama3-based model) is run with `temperature=0` for deterministic, fact-focused answers (minimizing hallucinations). The system prompt instructs the model to cite timestamps and video IDs, while each document chunk is formatted via `DOC_PROMPT` and automatically inserted into the final prompt.*
+Using ChatGroq hosted LLMs via an API whose API key is present in the .env file as GROQ_API_KEY.
+
+ChatGroq Documentation at @https://console.groq.com/docs/models and model setup and docs at @https://console.groq.com/docs/model/llama-3.1-8b-instant
+
+Using LangChain’s prompt templating, we inject the metadata of retrieved video segments (formatted with timestamps) into the LLM’s input. The **ChatGroq** LLM API  is run with `temperature=0` for deterministic, fact-focused answers (minimizing hallucinations). The system prompt instructs the model to cite timestamps and video IDs, while each document chunk is formatted via `DOC_PROMPT` and automatically inserted into the final prompt.
 
 ### 5-B | API Wrapper
 
