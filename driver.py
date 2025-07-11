@@ -254,11 +254,7 @@ class LeanVideoRAGDriver:
                     break
                 
                 if query.lower() == 'help':
-                    print("\n📖 HELP:")
-                    print("  • Ask questions like: 'what is this video about?'")
-                    print("  • Try: 'machine learning concepts', 'explain the topic'")
                     print("  • Commands: quit, exit, stats")
-                    print()
                     continue
                 
                 if query.lower() == 'stats':
