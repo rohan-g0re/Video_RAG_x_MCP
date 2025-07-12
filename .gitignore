@@ -77,3 +77,18 @@ models/
 temp_audio.* 
 
 data/
+
+# Videos directory - keep structure but ignore video files
+videos/*.mp4
+videos/*.avi
+videos/*.mov
+videos/*.mkv
+videos/*.wmv
+videos/*.flv
+videos/*.webm
+videos/*.m4v
+videos/*.3gp
+videos/*.ogv
+
+# But keep the directory structure
+!videos/.gitkeep

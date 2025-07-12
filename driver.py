@@ -46,57 +46,70 @@ logging.getLogger("src.phase5_generation").setLevel(logging.ERROR)
 
 
 class LeanVideoRAGDriver:
-    """Lean Video RAG pipeline with interactive querying."""
+    """Lean Video RAG pipeline with interactive querying - supports multiple videos."""
     
-    def __init__(self, video_path: str = "test_video.mp4"):
-        self.video_path = Path(video_path)
-        self.video_id = self.video_path.stem
+    def __init__(self, videos_dir: str = "videos"):
+        self.videos_dir = Path(videos_dir)
         self.data_dir = Path("data")
         
         # Ensure directories exist
         for subdir in ["transcripts", "embeddings", "frames"]:
             (self.data_dir / subdir).mkdir(parents=True, exist_ok=True)
         
-        print(f"🎬 Processing: {self.video_path}")
+        # Find all video files in the videos directory
+        self.video_files = []
+        if self.videos_dir.exists():
+            video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm']
+            for ext in video_extensions:
+                self.video_files.extend(self.videos_dir.glob(f"*{ext}"))
+        
+        if not self.video_files:
+            raise ValueError(f"No video files found in {self.videos_dir}")
+        
+        print(f"🎬 Found {len(self.video_files)} video(s) to process:")
+        for video in self.video_files:
+            print(f"   - {video.name} ({video.stat().st_size / (1024*1024):.1f} MB)")
     
-    def run_phase1(self) -> bool:
-        """Phase 1: Audio → Transcription → Segmentation → Embedding"""
-        print("\n🎵 Phase 1: Audio Processing...")
+    def run_phase1_for_video(self, video_path: Path) -> bool:
+        """Phase 1: Audio → Transcription → Segmentation → Embedding for a single video"""
+        video_id = video_path.stem
+        print(f"\n🎵 Phase 1: Audio Processing for {video_id}...")
         
         try:
             # Transcription
             generator = VideoTranscriptGenerator(whisper_model="base")
-            transcript_data = generator.process_video(str(self.video_path), str(self.data_dir / "transcripts"))
-            transcript_file = self.data_dir / "transcripts" / f"{self.video_id}.json"
+            transcript_data = generator.process_video(str(video_path), str(self.data_dir / "transcripts"))
+            transcript_file = self.data_dir / "transcripts" / f"{video_id}.json"
             
             # Semantic segmentation
-            semantic_file = self.data_dir / "transcripts" / f"{self.video_id}_semantic.json"
+            semantic_file = self.data_dir / "transcripts" / f"{video_id}_semantic.json"
             semantic_data = process_transcript_file_semantic(
                 str(transcript_file), str(semantic_file),
                 min_duration=5.0, max_duration=15.0, overlap_duration=1.0
             )
             
             # Text embedding
-            embeddings_file = self.data_dir / "embeddings" / f"{self.video_id}_embeddings.json"
+            embeddings_file = self.data_dir / "embeddings" / f"{video_id}_embeddings.json"
             embedding_results = process_semantic_segmented_file(
                 str(semantic_file), str(embeddings_file), batch_size=16
             )
             
-            print(f"✅ Audio: {semantic_data['total_segments']} segments, {embedding_results['embeddings_generated']} embeddings")
+            print(f"✅ Audio ({video_id}): {semantic_data['total_segments']} segments, {embedding_results['embeddings_generated']} embeddings")
             return True
             
         except Exception as e:
-            print(f"❌ Phase 1 failed: {e}")
+            print(f"❌ Phase 1 failed for {video_id}: {e}")
             return False
     
-    def run_phase2(self) -> bool:
-        """Phase 2: Frame Extraction → Embedding"""
-        print("🖼️  Phase 2: Frame Processing...")
+    def run_phase2_for_video(self, video_path: Path) -> bool:
+        """Phase 2: Frame Extraction → Embedding for a single video"""
+        video_id = video_path.stem
+        print(f"🖼️  Phase 2: Frame Processing for {video_id}...")
         
         try:
             # Frame sampling
             frame_sampler = FrameSampler(frames_dir=str(self.data_dir / "frames"), interval=10)
-            frame_metadata = frame_sampler.sample_frames(str(self.video_path), self.video_id)
+            frame_metadata = frame_sampler.sample_frames(str(video_path), video_id)
             
             # Frame embedding
             frame_embedder = FrameEmbedder(model_name="ViT-B-32", pretrained="openai")
@@ -104,52 +117,120 @@ class LeanVideoRAGDriver:
             
             # Save embeddings
             embeddings_list = [embedding.to_dict() for embedding in frame_embeddings]
-            frame_embeddings_file = self.data_dir / "embeddings" / f"{self.video_id}_frame_embeddings.json"
+            frame_embeddings_file = self.data_dir / "embeddings" / f"{video_id}_frame_embeddings.json"
             with open(frame_embeddings_file, 'w') as f:
                 json.dump(embeddings_list, f, indent=2)
             
-            print(f"✅ Frames: {len(frame_metadata)} extracted, {len(frame_embeddings)} embeddings")
+            print(f"✅ Frames ({video_id}): {len(frame_metadata)} extracted, {len(frame_embeddings)} embeddings")
             return True
             
         except Exception as e:
-            print(f"❌ Phase 2 failed: {e}")
+            print(f"❌ Phase 2 failed for {video_id}: {e}")
             return False
     
-    def run_phase3(self) -> bool:
-        """Phase 3: ChromaDB Ingestion"""
-        print("🗃️  Phase 3: Database Ingestion...")
+    def run_phase3_for_video(self, video_path: Path, clear_existing: bool = False) -> bool:
+        """Phase 3: ChromaDB Ingestion for a single video"""
+        video_id = video_path.stem
+        print(f"🗃️  Phase 3: Database Ingestion for {video_id}...")
         
         try:
             # Initialize ChromaDB
             vector_client = VectorStoreClient(persist_directory="data/chroma")
             ingestor = BatchIngestor(vector_client=vector_client, batch_size=20)
             
-            # Clear existing data
-            vector_client.delete_by_video_id(self.video_id)
+            # Clear existing data only for the first video or if explicitly requested
+            if clear_existing:
+                print(f"🗑️  Clearing existing data for {video_id}...")
+                vector_client.delete_by_video_id(video_id)
             
             # Ingest embeddings
-            phase1_file = self.data_dir / "embeddings" / f"{self.video_id}_embeddings.json"
-            phase2_file = self.data_dir / "embeddings" / f"{self.video_id}_frame_embeddings.json"
+            phase1_file = self.data_dir / "embeddings" / f"{video_id}_embeddings.json"
+            phase2_file = self.data_dir / "embeddings" / f"{video_id}_frame_embeddings.json"
             
             phase1_result = ingestor.ingest_phase1_embeddings(str(phase1_file))
             phase2_result = ingestor.ingest_phase2_embeddings(str(phase2_file))
             
             collection_info = vector_client.get_collection_info()
             
-            print(f"✅ Database: {phase1_result.segments_processed} audio + {phase2_result.segments_processed} frames = {collection_info['count']} total")
+            print(f"✅ Database ({video_id}): {phase1_result.segments_processed} audio + {phase2_result.segments_processed} frames")
+            print(f"📊 Total in collection: {collection_info['count']} vectors")
             return phase1_result.success and phase2_result.success
             
         except Exception as e:
-            print(f"❌ Phase 3 failed: {e}")
+            print(f"❌ Phase 3 failed for {video_id}: {e}")
             return False
+    
+    def run_phases_for_all_videos(self) -> bool:
+        """Run phases 1-3 for all videos in the videos directory"""
+        print(f"🚀 Starting multi-video processing pipeline...")
+        print(f"📁 Processing {len(self.video_files)} video(s)")
+        
+        total_processed = 0
+        total_failed = 0
+        
+        for i, video_path in enumerate(self.video_files):
+            video_id = video_path.stem
+            print(f"\n{'='*60}")
+            print(f"🎬 Processing Video {i+1}/{len(self.video_files)}: {video_id}")
+            print(f"{'='*60}")
+            
+            # Run phases 1-3 for this video
+            phases_success = []
+            
+            # Phase 1: Audio processing
+            phases_success.append(self.run_phase1_for_video(video_path))
+            
+            # Phase 2: Frame processing
+            phases_success.append(self.run_phase2_for_video(video_path))
+            
+            # Phase 3: Database ingestion (clear existing data only for first video)
+            clear_existing = (i == 0)  # Only clear for first video
+            phases_success.append(self.run_phase3_for_video(video_path, clear_existing))
+            
+            # Check if all phases succeeded for this video
+            if all(phases_success):
+                print(f"✅ Video {video_id} processed successfully")
+                total_processed += 1
+            else:
+                print(f"❌ Video {video_id} failed in one or more phases")
+                total_failed += 1
+        
+        # Summary
+        print(f"\n{'='*60}")
+        print(f"📊 MULTI-VIDEO PROCESSING SUMMARY")
+        print(f"{'='*60}")
+        print(f"✅ Successfully processed: {total_processed} videos")
+        print(f"❌ Failed: {total_failed} videos")
+        print(f"📊 Total videos: {len(self.video_files)}")
+        
+        # Get final database stats
+        if total_processed > 0:
+            try:
+                vector_client = VectorStoreClient(persist_directory="data/chroma")
+                collection_info = vector_client.get_collection_info()
+                video_list = vector_client.list_videos()
+                
+                print(f"\n🗃️  FINAL DATABASE STATUS:")
+                print(f"   Total vectors: {collection_info['count']}")
+                print(f"   Videos in database: {len(video_list)}")
+                for video_id in video_list:
+                    print(f"     - {video_id}")
+                    
+            except Exception as e:
+                print(f"⚠️  Could not get final database stats: {e}")
+        
+        return total_processed > 0 and total_failed == 0
     
     def save_results_to_json(self, query: str, documents: List, search_time: float) -> str:
         """Save search results with metadata AND actual content for LLM usage."""
+        # Extract all unique video IDs from documents
+        video_ids = list(set(doc.metadata.get('video_id', 'unknown') for doc in documents))
+        
         results_data = {
             "query": query,
             "search_time_seconds": search_time,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "video_id": self.video_id,
+            "video_ids": video_ids,  # Changed to support multiple videos
             "total_results": len(documents),
             "results": []
         }
@@ -190,6 +271,17 @@ class LeanVideoRAGDriver:
         audio_segments = [doc for doc in documents if doc.is_audio_segment()]
         frame_segments = [doc for doc in documents if doc.is_frame_segment()]
         
+        # Group by video for multi-video analysis
+        video_breakdown = {}
+        for doc in documents:
+            video_id = doc.metadata.get('video_id', 'unknown')
+            if video_id not in video_breakdown:
+                video_breakdown[video_id] = {"audio": 0, "frames": 0}
+            if doc.is_audio_segment():
+                video_breakdown[video_id]["audio"] += 1
+            else:
+                video_breakdown[video_id]["frames"] += 1
+        
         results_data["llm_ready_summary"] = {
             "total_audio_segments": len(audio_segments),
             "total_frame_segments": len(frame_segments),
@@ -198,11 +290,14 @@ class LeanVideoRAGDriver:
             "content_available": True,
             "citations_included": True,
             "ready_for_llm_processing": True,
+            "multi_video_analysis": True,  # New field for multi-video support
+            "video_breakdown": video_breakdown,  # Breakdown by video
             "content_summary": {
                 "has_transcript_text": len(audio_segments) > 0,
                 "has_visual_frames": len(frame_segments) > 0,
                 "longest_audio_segment": max((doc.metadata.get('word_count', 0) for doc in audio_segments), default=0),
-                "time_range": f"{min(doc.metadata.get('start', 0) for doc in documents):.1f}s - {max(doc.metadata.get('end', 0) for doc in documents):.1f}s" if documents else "0s - 0s"
+                "time_range": f"{min(doc.metadata.get('start', 0) for doc in documents):.1f}s - {max(doc.metadata.get('end', 0) for doc in documents):.1f}s" if documents else "0s - 0s",
+                "videos_included": len(video_ids)
             }
         }
         
@@ -210,6 +305,7 @@ class LeanVideoRAGDriver:
         results_data["llm_instructions"] = {
             "usage": "Use the 'llm_content' field for each result to access full transcript text or frame information",
             "citations": "Use 'citation_format' for proper source attribution in responses",
+            "multi_video_note": "Results may span multiple videos - check video_id in metadata for proper attribution",
             "content_types": [
                 "full_text: Complete transcript content for audio segments",
                 "frame_path: File path to visual frame image",
@@ -399,29 +495,19 @@ class LeanVideoRAGDriver:
             print("❌ Required components not available")
             return False
         
-        if not self.video_path.exists():
-            print(f"❌ Video file not found: {self.video_path}")
-            return False
-        
-        print(f"📁 Video size: {self.video_path.stat().st_size / (1024*1024):.1f} MB")
-        
-        # Execute phases
+        # Run multi-video processing for all videos found
         start_time = time.time()
         
-        phases = [
-            ("Phase 1", self.run_phase1),
-            ("Phase 2", self.run_phase2),
-            ("Phase 3", self.run_phase3)
-        ]
+        # Process all videos through phases 1-3
+        success = self.run_phases_for_all_videos()
         
-        for phase_name, phase_func in phases:
-            if not phase_func():
-                print(f"❌ {phase_name} failed - stopping pipeline")
-                return False
+        if not success:
+            print("❌ Multi-video processing failed")
+            return False
         
         total_time = time.time() - start_time
-        print(f"\n🎉 Pipeline completed in {total_time:.1f}s")
-        print("✅ Video content indexed and ready for querying")
+        print(f"\n🎉 Multi-video pipeline completed in {total_time:.1f}s")
+        print("✅ All video content indexed and ready for querying")
         
         # Start interactive querying
         self.interactive_query_loop()
@@ -434,11 +520,11 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Lean Video RAG Pipeline")
-    parser.add_argument("--video", default="test_video.mp4", help="Video file to process")
+    parser.add_argument("--video", default="videos", help="Video file or directory to process")
     
     args = parser.parse_args()
     
-    driver = LeanVideoRAGDriver(video_path=args.video)
+    driver = LeanVideoRAGDriver(videos_dir=args.video)
     success = driver.run()
     
     return 0 if success else 1
