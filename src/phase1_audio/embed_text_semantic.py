@@ -145,10 +145,11 @@ class SemanticEmbeddingProcessor:
         logger.info(f"Performance target: ≤{max_time:.2f}s - {'✓ PASS' if performance_ok else '✗ FAIL'}")
         
         # Store embeddings with enhanced metadata
-        for embedding, metadata in zip(embeddings, metadatas):
+        for embedding, metadata, caption in zip(embeddings, metadatas, captions):
             self.stored_embeddings.append({
                 'embedding': embedding.tolist(),
-                'metadata': metadata
+                'metadata': metadata,
+                'caption': caption  # ← FIX: Include actual transcript text
             })
         
         # Save to file if requested

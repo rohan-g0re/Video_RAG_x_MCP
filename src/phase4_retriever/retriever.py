@@ -227,8 +227,15 @@ class Retriever:
         modality = metadata.get("modality", "unknown")
         
         if modality == "audio":
-            # Use actual text content for audio segments
-            page_content = phase3_result.get("document", "")
+            # Use actual transcript text for audio segments
+            # First try caption from metadata (our fix), then fall back to document field
+            page_content = (metadata.get("caption") or 
+                          phase3_result.get("document", ""))
+            
+            # If still empty, try to get content from other sources
+            if not page_content or not page_content.strip():
+                page_content = f"Audio segment at {metadata.get('start', 0):.1f}s"
+                
         elif modality == "frame":
             # Use placeholder for visual segments as specified
             page_content = "<IMAGE_FRAME>"
