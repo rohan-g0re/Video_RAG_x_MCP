@@ -1,6 +1,6 @@
 # 🎬 Multimodal Video RAG Pipeline
 
-A complete **Retrieval-Augmented Generation (RAG) system** for video content that combines audio transcription and visual frame analysis to enable intelligent querying of video libraries.
+A complete **Retrieval-Augmented Generation (RAG) system** for video content that combines audio transcription and visual frame analysis to enable intelligent querying of video libraries with **multi-video support** and **LLM-powered responses**.
 
 > **Inspired by:** [NVIDIA's Multimodal RAG Guide](https://developer.nvidia.com/blog/an-easy-introduction-to-multimodal-retrieval-augmented-generation-for-video-and-audio/)
 
@@ -10,14 +10,17 @@ A complete **Retrieval-Augmented Generation (RAG) system** for video content tha
 - 🖼️ **Visual Analysis**: CLIP-based frame embedding and analysis  
 - 🗃️ **Vector Storage**: ChromaDB for efficient similarity search
 - 🔍 **Intelligent Retrieval**: Multimodal search across audio and visual content
-- ⚡ **Local Processing**: Runs entirely offline without external APIs
+- 🤖 **LLM Generation**: ChatGroq integration with Llama-3.1-8b-instant for natural language responses
+- 📽️ **Multi-Video Support**: Process and query multiple videos simultaneously
+- 💬 **Interactive CLI**: Real-time querying with LLM generation and source citations
+- ⚡ **Local Processing**: Audio/visual processing runs offline, LLM via ChatGroq API
 - 🐍 **Pure Python**: Clean, modular architecture with comprehensive testing
 
 ## 🏗️ Architecture Overview
 
 ```mermaid
 graph TD
-    A[Video Input] --> B[Phase 1: Audio Processing]
+    A[Multiple Videos] --> B[Phase 1: Audio Processing]
     A --> C[Phase 2: Visual Processing]
     
     B --> B1[Audio Extraction]
@@ -33,16 +36,18 @@ graph TD
     
     D --> E[Phase 4: Retrieval Service]
     E --> F[Phase 5: LLM Generation]
-    F --> G[Phase 6: Clip Builder]
+    F --> G[Interactive CLI]
     
     E --> E1[Query Embedding]
-    E1 --> E2[Similarity Search]
+    E1 --> E2[Cross-Video Similarity Search]
     
     F --> F1[Context Assembly]
-    F1 --> F2[LLM Response]
+    F1 --> F2[ChatGroq LLM Response]
+    F2 --> F3[Source Citations]
     
-    G --> G1[Timestamp Extraction]
-    G1 --> G2[Video Clipping]
+    G --> G1[User Queries]
+    G1 --> G2[Real-time Responses]
+    G2 --> G3[Multi-Video Results]
     
     style A fill:#e1f5fe
     style D fill:#f3e5f5
@@ -57,6 +62,7 @@ graph TD
 
 - **Python 3.9-3.12** (⚠️ ChromaDB compatibility issues with Python 3.13+)
 - **FFmpeg** (for video/audio processing)
+- **ChatGroq API Key** (for LLM generation - free tier available)
 - **Git** (for cloning)
 
 ### Installation
@@ -94,250 +100,304 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-#### 3. ChromaDB Version Compatibility
-
-Our pipeline uses the **latest ChromaDB API** (v1.0+). Key compatibility notes:
-
-- ✅ **ChromaDB 1.0+**: Full compatibility with new `PersistentClient` API
-- ❌ **ChromaDB 0.4.x**: Uses deprecated `Client(settings)` API  
-- ⚠️ **Python 3.13**: Known ChromaDB compatibility issues
-- ✅ **Python 3.9-3.12**: Fully supported
+#### 3. Environment Setup
 
 ```bash
-# Verify ChromaDB installation
-python -c "import chromadb; print('ChromaDB version:', chromadb.__version__)"
+# Create .env file for ChatGroq API
+echo "GROQ_API_KEY=your_api_key_here" > .env
+
+# Get free API key from: https://console.groq.com/
+```
+
+#### 4. Video Setup
+
+```bash
+# Add your videos to the videos directory
+cp your_video1.mp4 videos/
+cp your_video2.mp4 videos/
+# Supports: .mp4, .avi, .mov, .mkv, .wmv, .flv, .webm
 ```
 
 ### 🎯 Basic Usage
 
-#### Run Complete Pipeline
+#### Process Multiple Videos
 
 ```bash
-# Process a video through all phases
-python driver.py --video your_video.mp4
+# Process all videos in the videos/ directory
+python driver.py
 
-# With verbose logging
-python driver.py --video your_video.mp4 --verbose
+# Or specify custom directory
+python driver.py --video custom_videos/
 ```
 
-#### Verify Results
+The pipeline will:
+1. 📁 **Discover** all video files in the directory
+2. 🎵 **Process** each video through audio analysis (Phase 1)
+3. 🖼️ **Extract** and analyze frames from each video (Phase 2)  
+4. 🗃️ **Store** all embeddings in ChromaDB with unique video IDs (Phase 3)
+5. 💬 **Launch** interactive CLI for cross-video querying
 
-```bash
-# Inspect stored embeddings
-python verify_chromadb_embeddings.py
+#### Interactive Querying
 
-# Search your video content
-python verify_chromadb_embeddings.py --action search --query "machine learning"
+After processing, you'll enter an interactive mode:
 
-# Export embedding summary
-python verify_chromadb_embeddings.py --action export --output summary.json
 ```
+🔍 INTERACTIVE QUERY MODE (with LLM Generation)
+🤖 LLM Generation: ENABLED (ChatGroq Llama-3.1-8b-instant)
+
+🤖 Query: What topics are discussed across the videos?
+
+✅ AI Answer (generated in 2.341s):
+============================================================
+Based on the video segments, the topics discussed include:
+
+1. **Artificial Intelligence and Machine Learning** [test_video_2: 43.3s-53.2s] 
+   - The videos explain AI concepts and their everyday applications
+
+2. **Technology Decision-Making** [test_video_2: 20.3s-28.2s]
+   - How computers make decisions that affect daily life
+
+3. **Learning and Knowledge** [test_video_2: 158.0s-162.4s]
+   - The importance of gaining hands-on experience with tools
+============================================================
+
+📚 Sources (6 segments):
+   1. [test_video_2: 26.8s-34.4s] AUDIO
+      💬 When you do an internet search or scroll through your...
+   2. [test_video_1: 34.5s-41.2s] AUDIO  
+      💬 This is your hate in this life, man! Oh, man!...
+```
+
+#### Commands
+
+- `help` - Show available commands
+- `stats` - Display database statistics  
+- `llm` - Toggle between LLM and retrieval-only mode
+- `quit` / `exit` - Exit the program
 
 ## 📁 Project Structure
 
 ```
 Video RAG Pipeline/
+├── 📂 videos/                       # 📽️ Video files directory
+│   ├── .gitkeep                     # Preserves directory in git
+│   ├── your_video1.mp4              # (ignored by git)
+│   └── your_video2.mp4              # (ignored by git)
 ├── 📂 src/                          # Core pipeline modules
 │   ├── 📂 phase1_audio/             # Audio processing & embedding
 │   │   ├── extract_transcribe.py    # Whisper transcription
-│   │   ├── segment_transcript.py    # Text segmentation
-│   │   └── embed_text.py           # Text embedding
+│   │   ├── segment_transcript_semantic.py # Semantic segmentation
+│   │   └── embed_text_semantic.py   # Text embedding with caption preservation
 │   ├── 📂 phase2_visual/            # Visual processing & embedding  
 │   │   ├── sample_frames.py         # Frame extraction
 │   │   └── embed_frames.py          # Image embedding
 │   ├── 📂 phase3_db/                # ChromaDB integration
 │   │   ├── client.py               # Vector store client
 │   │   ├── ingest.py               # Batch ingestion
-│   │   ├── models.py               # Data models
-│   │   └── retriever.py            # Search & retrieval
-│   ├── 📂 phase4_retriever/         # Query processing
+│   │   └── models.py               # Data models
+│   ├── 📂 phase4_retriever/         # Query processing & retrieval
+│   │   ├── retriever.py            # Multi-video search & retrieval
+│   │   ├── models.py               # Document models
+│   │   └── embed_query.py          # Query embedding
 │   ├── 📂 phase5_generation/        # LLM integration
-│   └── 📂 phase6_clipper/           # Video clipping
+│   │   ├── qa_service.py           # FastAPI QA service
+│   │   ├── llm_integration.py      # ChatGroq LLM integration
+│   │   └── prompt_templates.py     # System prompts & formatting
+│   └── 📂 phase6_clipper/           # Video clipping (future)
 ├── 📂 data/                         # Processed data
-│   ├── transcripts/                # Audio transcripts
-│   ├── embeddings/                 # Vector embeddings
-│   ├── frames/                     # Extracted frames
-│   └── chroma/                     # ChromaDB storage
+│   ├── transcripts/                # Audio transcripts (per video)
+│   ├── embeddings/                 # Vector embeddings (per video)
+│   ├── frames/                     # Extracted frames (per video)
+│   └── chroma/                     # ChromaDB storage (unified)
 ├── 📂 tests/                        # Test suite
-├── driver.py                       # Main pipeline driver
-├── verify_chromadb_embeddings.py   # Database verification
-└── requirements.txt                # Python dependencies
+├── driver.py                       # 🚀 Main multi-video pipeline
+├── requirements.txt                # Python dependencies
+└── .gitignore                      # Ignores video files, keeps structure
 ```
 
 ## 🔧 Detailed Phase Breakdown
 
 ### Phase 1: Audio Processing Pipeline 
-- **Audio Extraction**: FFmpeg-based audio track extraction
+- **Multi-Video Audio Extraction**: FFmpeg-based processing for each video
 - **Speech Transcription**: OpenAI Whisper with word-level timestamps
 - **Semantic Segmentation**: Intelligent text chunking (5-15s segments)
-- **Text Embedding**: CLIP text encoder for semantic vectors
+- **Text Embedding**: CLIP text encoder with **caption preservation**
+- **Unique Video IDs**: Each video gets distinct identifier for cross-video queries
 
 ### Phase 2: Visual Processing Pipeline
-- **Frame Sampling**: Extract keyframes every 10 seconds
-- **Image Embedding**: CLIP image encoder (ViT-B-32)
-- **Metadata Association**: Timestamp and location tracking
+- **Multi-Video Frame Sampling**: Extract keyframes every 10 seconds per video
+- **Image Embedding**: CLIP image encoder (ViT-B-32) 
+- **Video-Specific Metadata**: Timestamp and video ID tracking
 
-### Phase 3: Vector Database
-- **ChromaDB Storage**: Persistent local vector database
-- **Unified Schema**: Audio and visual embeddings in single collection
-- **Batch Ingestion**: Efficient bulk data loading
-- **Similarity Search**: Cosine similarity for content retrieval
+### Phase 3: Unified Vector Database
+- **ChromaDB Storage**: Single collection with multi-video support
+- **Unique Video IDs**: Prevents conflicts between videos
+- **Batch Ingestion**: Efficient processing of multiple videos
+- **Cross-Video Search**: Query across all videos simultaneously
 
-### Phase 4: Retrieval System
+### Phase 4: Multi-Video Retrieval System
 - **Query Embedding**: Real-time query vectorization
-- **Multimodal Search**: Combined audio/visual similarity search
-- **Result Ranking**: Relevance-based result ordering
+- **Cross-Video Search**: Retrieve relevant segments from any video
+- **Video-Specific Filtering**: Option to search within specific videos
+- **Result Ranking**: Relevance-based ordering across all videos
 
-### Phase 5: Generation Pipeline
-- **Context Assembly**: Relevant segment compilation
-- **LLM Integration**: Natural language response generation
-- **Citation**: Timestamp and source attribution
-
-### Phase 6: Video Clipping
-- **Timestamp Extraction**: Parse time references from responses
-- **Clip Generation**: Extract relevant video segments
-- **Multi-format Export**: Various output formats supported
+### Phase 5: LLM Generation Pipeline ⭐
+- **ChatGroq Integration**: Llama-3.1-8b-instant model
+- **Context Assembly**: Multi-video segment compilation
+- **Source Citations**: Automatic timestamp and video ID attribution
+- **Temperature=0**: Deterministic, fact-focused responses
+- **Async Processing**: Non-blocking LLM generation
 
 ## 🔍 Usage Examples
 
-### Search Video Content
+### Multi-Video Search
 
 ```python
-from src.phase3_db.client import VectorStoreClient
-from src.phase3_db.retriever import VectorRetriever
+from phase4_retriever import search_videos
 
-# Initialize retriever
-client = VectorStoreClient()
-retriever = VectorRetriever(vector_client=client)
+# Search across all videos
+results = search_videos("machine learning", k=10)
 
-# Search for content
-response = retriever.search_by_text("machine learning tutorial", k=5)
-
-for result in response.results:
-    print(f"📍 {result.get_timing_info()}")
-    print(f"   Content: {result.content[:100]}...")
-    print(f"   Score: {result.similarity_score:.3f}\n")
+for doc in results:
+    video_id = doc.metadata['video_id']
+    timing = doc.get_timing_info()
+    content = doc.page_content[:100]
+    
+    print(f"📹 {video_id} [{timing}]: {content}...")
 ```
 
-### Process Multiple Videos
+### Video-Specific Search
 
 ```python
-import glob
-from pathlib import Path
+from phase4_retriever import Retriever
 
-# Process all videos in a directory
-for video_path in glob.glob("videos/*.mp4"):
-    print(f"Processing {video_path}...")
-    # Run driver programmatically or via subprocess
+retriever = Retriever()
+
+# Search within specific video
+video1_results = retriever.search_by_video("AI concepts", "video1", k=5)
+video2_results = retriever.search_by_video("AI concepts", "video2", k=5)
+
+print(f"Video 1: {len(video1_results)} results")
+print(f"Video 2: {len(video2_results)} results")
+```
+
+### LLM Generation
+
+```python
+import asyncio
+from phase5_generation import QAService, QARequest
+
+async def query_videos():
+    qa_service = QAService()
+    
+    request = QARequest(
+        question="What are the main themes across these videos?",
+        k=8,
+        include_audio=True,
+        include_visual=True
+    )
+    
+    response = await qa_service.process_question(request)
+    
+    print(f"Answer: {response.answer}")
+    print(f"Sources from {len(set(s.video_id for s in response.sources))} videos")
+    
+    for source in response.sources:
+        print(f"  📹 {source.video_id} [{source.start:.1f}s-{source.end:.1f}s]")
+
+# Run async function
+asyncio.run(query_videos())
 ```
 
 ## 📊 Performance Metrics
 
-Based on test video (4.5MB, ~50s duration):
+**Multi-Video Processing** (2 videos: 4.5MB + 6.3MB, ~100s total):
 
 | Phase | Processing Time | Output |
 |-------|----------------|---------|
-| **Phase 1** | ~23.5s | 8 audio segments, 512D embeddings |
-| **Phase 2** | ~3.5s | 6 frame segments, 512D embeddings |  
-| **Phase 3** | ~0.4s | 14 total segments in ChromaDB |
-| **Total** | **~27.4s** | **Complete searchable database** |
+| **Phase 1** | ~45s | 27 audio segments across videos |
+| **Phase 2** | ~8s | 24 frame segments across videos |  
+| **Phase 3** | ~1.2s | 51 total vectors in ChromaDB |
+| **Total** | **~54.2s** | **Complete multi-video database** |
 
-**Search Performance**: ~100ms per query with sub-second result ranking
+**Query Performance**:
+- **Retrieval**: ~150ms per cross-video query
+- **LLM Generation**: ~2-4s per response (ChatGroq Llama-3.1-8b)
+- **Interactive Mode**: Real-time responsiveness
 
 ## 🛠️ Development & Testing
 
-### Run Test Suite
+### Environment Variables
 
 ```bash
-# Run all tests
-python -m pytest tests/ -v
+# Required: ChatGroq API key
+GROQ_API_KEY=your_groq_api_key
 
-# Test specific phases
-python -m pytest tests/test_phase1_audio.py -v
-python -m pytest tests/test_phase3_vector_store.py -v
+# Optional: Custom paths
+CHROMA_PERSIST_DIR="custom/chroma/path"
+VIDEO_DATA_DIR="custom/data/path"
+
+# Optional: Model settings
+WHISPER_MODEL="base"  # or "small", "medium", "large"
+CLIP_MODEL="ViT-B-32"
 ```
 
 ### Manual Testing
 
 ```bash
-# Test Phase 3 manually
-python test_phase3_manual.py
+# Test multi-video database
+python -c "
+from src.phase3_db.client import VectorStoreClient
+client = VectorStoreClient()
+info = client.get_collection_info()
+videos = client.list_videos()
+print(f'Total vectors: {info[\"count\"]}, Videos: {videos}')
+"
 
-# Verify ChromaDB functionality
-python test_chromadb_minimal.py
+# Test cross-video retrieval
+python -c "
+from phase4_retriever import Retriever
+retriever = Retriever()
+results = retriever.search('content', k=5)
+videos = set(doc.metadata['video_id'] for doc in results)
+print(f'Results from {len(videos)} videos: {videos}')
+"
 ```
-
-### Debug Pipeline
-
-```bash
-# Check pipeline report
-cat pipeline_report.json
-
-# View ChromaDB contents
-python verify_chromadb_embeddings.py --action inspect
-
-# Export detailed summary
-python verify_chromadb_embeddings.py --action export
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-```bash
-# Optional: Set custom paths
-export CHROMA_PERSIST_DIR="custom/chroma/path"
-export VIDEO_DATA_DIR="custom/data/path"
-
-# Optional: Model settings
-export WHISPER_MODEL="base"  # or "small", "medium", "large"
-export CLIP_MODEL="ViT-B-32"
-```
-
-### Model Configuration
-
-- **Whisper Model**: `base` (fast) to `large` (accurate)
-- **CLIP Model**: `ViT-B-32` (balanced) or `ViT-L-14` (high-quality)
-- **Embedding Dimension**: 512 (ViT-B-32) or 768 (ViT-L-14)
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-#### ChromaDB Version Conflicts
+#### ChatGroq API Issues
 ```bash
-# Error: "deprecated configuration of Chroma"
-pip install --upgrade chromadb
+# Error: "GROQ_API_KEY not found"
+echo "GROQ_API_KEY=your_key_here" > .env
 
-# If issues persist, reinstall
-pip uninstall chromadb
-pip install chromadb>=1.0.0
+# Test API connection
+python -c "
+from phase5_generation.llm_integration import ChatGroqLLM
+llm = ChatGroqLLM()
+print('ChatGroq connection:', llm.health_check())
+"
 ```
 
-#### Python 3.13 Compatibility
+#### Multi-Video Processing Issues
 ```bash
-# Use Python 3.11 instead
-pyenv install 3.11.7
-pyenv local 3.11.7
+# Error: No videos found
+ls videos/  # Check videos directory exists and has files
+
+# Check supported formats
+echo "Supported: .mp4, .avi, .mov, .mkv, .wmv, .flv, .webm"
 ```
 
-#### FFmpeg Not Found
+#### ChromaDB Multi-Video Conflicts
 ```bash
-# Windows: Install via chocolatey
-choco install ffmpeg
-
-# macOS: Install via homebrew  
-brew install ffmpeg
-
-# Ubuntu/Debian
-sudo apt update && sudo apt install ffmpeg
-```
-
-#### Memory Issues
-```bash
-# Reduce batch sizes in code
-# Phase 1: batch_size=8 (default: 16)
-# Phase 2: batch_size=16 (default: 32)
+# Clear database if needed
+python -c "
+from src.phase3_db.client import VectorStoreClient
+client = VectorStoreClient()
+client.collection.delete()  # Nuclear option
+"
 ```
 
 ### Debug Mode
@@ -346,19 +406,39 @@ sudo apt update && sudo apt install ffmpeg
 # Enable detailed logging
 python driver.py --verbose
 
-# Check specific components
+# Check multi-video processing
 python -c "
-from src.phase3_db.client import VectorStoreClient
-client = VectorStoreClient()
-print('ChromaDB client working:', client.get_collection_info())
+from driver import LeanVideoRAGDriver
+driver = LeanVideoRAGDriver('videos')
+print(f'Found videos: {[v.name for v in driver.video_files]}')
 "
 ```
+
+## 🌟 Key Improvements
+
+### ✅ What's New in This Version
+
+- **🎬 Multi-Video Support**: Process and query multiple videos simultaneously
+- **🤖 ChatGroq LLM Integration**: Natural language responses with source citations
+- **💬 Interactive CLI**: Real-time querying with LLM generation toggle
+- **🔍 Cross-Video Retrieval**: Search across all videos in unified queries
+- **📁 Smart File Management**: Videos directory with .gitignore for version control
+- **🎯 Enhanced Retrieval**: Video-specific and modality-specific search options
+- **📊 Comprehensive Statistics**: Multi-video database insights and performance metrics
+
+### 🚀 Usage Highlights
+
+1. **Drop multiple videos** in the `videos/` directory
+2. **Run single command** to process all videos
+3. **Query naturally** across all content with LLM responses
+4. **Get cited sources** from specific videos and timestamps
+5. **Toggle modes** between LLM generation and raw retrieval
 
 ## 🤝 Contributing
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Run tests** (`python -m pytest`)
+3. **Test** with multiple videos (`python driver.py`)
 4. **Commit** changes (`git commit -m 'Add amazing feature'`)
 5. **Push** to branch (`git push origin feature/amazing-feature`)
 6. **Open** a Pull Request
@@ -370,6 +450,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **NVIDIA** for the [Multimodal RAG tutorial](https://developer.nvidia.com/blog/an-easy-introduction-to-multimodal-retrieval-augmented-generation-for-video-and-audio/)
+- **ChatGroq** for fast LLM inference with Llama models
 - **OpenAI** for Whisper speech recognition
 - **OpenCLIP** team for CLIP implementations  
 - **ChromaDB** team for the vector database
@@ -377,13 +458,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📈 Roadmap
 
-- [ ] **Web Interface**: Browser-based query interface
-- [ ] **API Server**: REST API for remote access
-- [ ] **Cloud Storage**: S3/GCS integration for large video libraries
+- [x] **Multi-Video Support**: Process multiple videos simultaneously
+- [x] **LLM Integration**: ChatGroq integration with Llama-3.1-8b-instant
+- [x] **Interactive CLI**: Real-time querying with source citations
+- [ ] **Web Interface**: Browser-based multi-video query interface
+- [ ] **API Server**: REST API for remote multi-video access
+- [ ] **Video Management**: Upload, organize, and manage video libraries
+- [ ] **Advanced Filtering**: Date, duration, speaker, and topic filters
 - [ ] **Real-time Processing**: Live video stream analysis
-- [ ] **Multi-language**: Support for non-English content
-- [ ] **Advanced Retrieval**: Hybrid search with metadata filtering
+- [ ] **Clip Generation**: Auto-generate video clips from relevant segments
 
 ---
 
-> 🚀 **Ready to build your own Video RAG system?** Follow the installation guide and start processing your first video! 
+> 🚀 **Ready to build your multi-video RAG system?** Add your videos to the `videos/` directory and run `python driver.py` to start! 
