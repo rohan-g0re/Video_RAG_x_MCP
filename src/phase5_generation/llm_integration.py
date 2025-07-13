@@ -2,19 +2,17 @@
 Phase 5: ChatGroq LLM Integration
 
 Implements ChatGroq LLM integration as specified in the development plan:
-- ChatGroq API integration with Llama-3.1-8b-instant
-- Environment variable management for API key
-- Error handling and retry logic
-- Integration with Phase 4 retrieval results
-
-Key Features:
 - Temperature=0 for deterministic answers
-- Proper API key management from .env
-- Async support for FastAPI integration
-- Comprehensive error handling
+- Proper error handling and retries
+- Integration with Phase 4 Document format
+- Source extraction and citation formatting
+
+Uses ChatGroq with Llama models for cost-effective, high-quality generation.
 """
 
 import os
+import time
+import tiktoken
 import logging
 from typing import List, Optional, Dict, Any
 from langchain_groq import ChatGroq
@@ -115,12 +113,8 @@ class ChatGroqLLM:
                 context=formatted_context
             )
             
-            # Debug: Print the actual prompt being sent to LLM
-            print("\n" + "="*80)
-            print("🤖 PROMPT SENT TO LLM:")
-            print("="*80)
-            print(full_prompt)
-            print("="*80)
+            # Enhanced debugging: Show comprehensive prompt details
+            _debug_prompt_details(full_prompt, context_documents, question)
             
             # Generate response
             print(f"🔄 Generating response with ChatGroq...")
@@ -207,12 +201,8 @@ class ChatGroqLLM:
                 context=formatted_context
             )
             
-            # Debug: Print the actual prompt being sent to LLM
-            print("\n" + "="*80)
-            print("🤖 PROMPT SENT TO LLM:")
-            print("="*80)
-            print(full_prompt)
-            print("="*80)
+            # Enhanced debugging: Show comprehensive prompt details
+            _debug_prompt_details(full_prompt, context_documents, question)
             
             # Generate response using async invoke
             print(f"🔄 Generating response with ChatGroq...")
@@ -274,3 +264,86 @@ class ChatGroqLLM:
         except Exception as e:
             logger.warning(f"LLM health check failed: {e}")
             return False 
+
+def _debug_prompt_details(full_prompt: str, context_documents: List, question: str) -> None:
+    """
+    Enhanced debugging function to show comprehensive prompt information.
+    
+    Args:
+        full_prompt: The complete prompt being sent to LLM
+        context_documents: List of retrieved documents
+        question: User's question
+    """
+    # Estimate token count (rough approximation: 1 token ≈ 4 characters)
+    estimated_tokens = len(full_prompt) // 4
+    
+    # Try to get more accurate token count using tiktoken if available
+    try:
+        encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")  # Close approximation for Llama
+        actual_tokens = len(encoding.encode(full_prompt))
+    except:
+        actual_tokens = estimated_tokens
+    
+    print("\n" + "="*100)
+    print("🔍 DETAILED PROMPT DEBUGGING")
+    print("="*100)
+    
+    # Question details
+    print(f"📝 USER QUESTION:")
+    print(f"   Length: {len(question)} chars")
+    print(f"   Content: {question}")
+    print()
+    
+    # Context documents summary
+    print(f"📊 CONTEXT DOCUMENTS: {len(context_documents)} documents")
+    if context_documents:
+        audio_count = sum(1 for doc in context_documents if doc.metadata.get('modality') == 'audio')
+        frame_count = sum(1 for doc in context_documents if doc.metadata.get('modality') == 'frame')
+        print(f"   - Audio segments: {audio_count}")
+        print(f"   - Frame segments: {frame_count}")
+        
+        # Show document details
+        for i, doc in enumerate(context_documents, 1):
+            video_id = doc.metadata.get('video_id', 'unknown')
+            start = doc.metadata.get('start', 0)
+            end = doc.metadata.get('end', 0)
+            modality = doc.metadata.get('modality', 'unknown')
+            content_preview = doc.page_content[:50] + "..." if len(doc.page_content) > 50 else doc.page_content
+            
+            print(f"   {i}. [{video_id}:{start:.1f}-{end:.1f}|{modality}] {content_preview}")
+    print()
+    
+    # Prompt statistics
+    print(f"📏 PROMPT STATISTICS:")
+    print(f"   - Total length: {len(full_prompt):,} characters")
+    print(f"   - Estimated tokens: {estimated_tokens:,}")
+    print(f"   - Actual tokens (tiktoken): {actual_tokens:,}")
+    print(f"   - Lines: {full_prompt.count(chr(10)) + 1}")
+    print()
+    
+    # Show sections of the prompt
+    lines = full_prompt.split('\n')
+    
+    # Find key sections
+    context_start = -1
+    answer_start = -1
+    
+    for i, line in enumerate(lines):
+        if "Retrieved Video Segments:" in line:
+            context_start = i
+        elif line.strip() == "Answer:":
+            answer_start = i
+    
+    print(f"🤖 COMPLETE PROMPT STRUCTURE:")
+    print(f"   - System instructions: Lines 1-{context_start if context_start > 0 else 'N/A'}")
+    if context_start > 0:
+        print(f"   - Context documents: Lines {context_start+1}-{answer_start if answer_start > 0 else len(lines)}")
+    print()
+    
+    print("📤 FULL PROMPT SENT TO LLM:")
+    print("-" * 80)
+    print(full_prompt)
+    print("-" * 80)
+    print(f"🎯 Token budget impact: {actual_tokens:,} tokens used")
+    print("="*100)
+    print() 

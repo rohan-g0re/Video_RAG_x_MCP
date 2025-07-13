@@ -27,6 +27,7 @@ langchain
 langchain-groq
 fastapi
 uvicorn
+tiktoken
 
 # Testing
 pytest
