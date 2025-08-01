@@ -8,7 +8,6 @@ This module handles visual processing for the Video RAG pipeline:
 
 __version__ = "1.0.0"
 
-from .sample_frames import FrameSampler
-from .embed_frames import FrameEmbedder
+from .processor import FrameSampler, FrameEmbedder
 
 __all__ = ["FrameSampler", "FrameEmbedder"] 

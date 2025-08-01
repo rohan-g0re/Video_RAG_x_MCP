@@ -21,8 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from phase1_audio.extract_transcribe import VideoTranscriptGenerator
 from phase1_audio.segment_transcript_semantic import SemanticTranscriptSegmenter
 from phase1_audio.embed_text_semantic import SemanticEmbeddingProcessor
-from phase2_visual.sample_frames import FrameSampler
-from phase2_visual.embed_frames import FrameEmbedder
+from phase2_visual.processor import FrameSampler, FrameEmbedder
 
 # Phase 3 and 4 imports
 try:
@@ -134,17 +133,30 @@ class VideoRAGMCPDriver:
             vector_client = VectorStoreClient(persist_directory="data/chroma")
             ingestor = BatchIngestor(vector_client=vector_client, batch_size=20)
             
-            # Clear existing data only for the first video or if explicitly requested
-            if clear_existing:
-                print(f"🗑️  Clearing existing data for {video_id}...")
-                vector_client.delete_by_video_id(video_id)
-            
-            # Ingest embeddings
+            # Use combined ingestion method that automatically clears existing data
             phase1_file = self.data_dir / "embeddings" / f"{video_id}_embeddings.json"
             phase2_file = self.data_dir / "embeddings" / f"{video_id}_frame_embeddings.json"
             
-            phase1_result = ingestor.ingest_phase1_embeddings(str(phase1_file))
-            phase2_result = ingestor.ingest_phase2_embeddings(str(phase2_file))
+            # Combined ingestion automatically clears existing data for this video_id
+            combined_result = ingestor.ingest_combined_video(video_id, str(phase1_file), str(phase2_file))
+            
+            # Extract individual results for logging (using actual stats from combined result)
+            if hasattr(ingestor, 'stats'):
+                audio_segments = ingestor.stats.get('audio_segments', 0)
+                visual_segments = ingestor.stats.get('visual_segments', 0)
+            else:
+                # Fallback estimation
+                audio_segments = combined_result.segments_processed * 2 // 3  # Rough estimate
+                visual_segments = combined_result.segments_processed // 3
+            
+            phase1_result = type('Result', (), {
+                'segments_processed': audio_segments,
+                'success': combined_result.success
+            })()
+            phase2_result = type('Result', (), {
+                'segments_processed': visual_segments,
+                'success': combined_result.success
+            })()
             
             collection_info = vector_client.get_collection_info()
             
