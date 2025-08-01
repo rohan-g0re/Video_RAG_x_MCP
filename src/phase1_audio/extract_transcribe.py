@@ -23,23 +23,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class AudioExtractor:
-    """Handles audio extraction from video files using FFmpeg."""
+class VideoTranscriptGenerator:
+    """Unified class for audio extraction and transcription."""
     
-    def __init__(self):
+    def __init__(self, whisper_model: str = "medium"):
+        self.whisper_model = whisper_model
         self.temp_dir = None
-    
-    def extract_audio(self, video_path: str, output_path: str = None) -> str:
-        """
-        Extract audio from video file using FFmpeg.
+        self.model = None
         
-        Args:
-            video_path: Path to input video file
-            output_path: Path to output audio file (optional)
-            
-        Returns:
-            Path to extracted audio file
-        """
+    def _load_whisper_model(self):
+        """Load Whisper model on demand."""
+        if self.model is None:
+            logger.info(f"Loading faster-whisper model: {self.whisper_model}")
+            self.model = WhisperModel(self.whisper_model, device="auto", compute_type="auto")
+            logger.info("faster-whisper model loaded successfully")
+    
+    def _extract_audio(self, video_path: str, output_path: str = None) -> str:
+        """Extract audio from video file using FFmpeg."""
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found: {video_path}")
         
@@ -73,37 +73,9 @@ class AudioExtractor:
             logger.error(f"FFmpeg error: {e}")
             raise RuntimeError(f"Failed to extract audio: {e}")
     
-    def cleanup(self):
-        """Clean up temporary files."""
-        if self.temp_dir and os.path.exists(self.temp_dir):
-            import shutil
-            shutil.rmtree(self.temp_dir)
-
-
-class WhisperTranscriber:
-    """Handles transcription using faster-whisper with word-level timestamps."""
-    
-    def __init__(self, model_name: str = "medium"):
-        """
-        Initialize Whisper transcriber.
-        
-        Args:
-            model_name: Whisper model size (tiny, base, small, medium, large)
-        """
-        logger.info(f"Loading faster-whisper model: {model_name}")
-        self.model = WhisperModel(model_name, device="auto", compute_type="auto")
-        logger.info("faster-whisper model loaded successfully")
-    
-    def transcribe_with_timestamps(self, audio_path: str) -> Dict[str, Any]:
-        """
-        Transcribe audio file with word-level timestamps.
-        
-        Args:
-            audio_path: Path to audio file
-            
-        Returns:
-            Dictionary with transcription and word-level timestamps
-        """
+    def _transcribe_audio(self, audio_path: str) -> Dict[str, Any]:
+        """Transcribe audio file with word-level timestamps."""
+        self._load_whisper_model()
         logger.info(f"Transcribing audio: {audio_path}")
         
         # Transcribe with word-level timestamps using faster-whisper
@@ -132,22 +104,21 @@ class WhisperTranscriber:
             'language': info.language,
             'words': words_with_timestamps
         }
-
-
-class VideoTranscriptGenerator:
-    """Main class that orchestrates audio extraction and transcription."""
     
-    def __init__(self, whisper_model: str = "medium"):
-        self.audio_extractor = AudioExtractor()
-        self.transcriber = WhisperTranscriber(whisper_model)
+    def _cleanup(self):
+        """Clean up temporary files."""
+        if self.temp_dir and os.path.exists(self.temp_dir):
+            import shutil
+            shutil.rmtree(self.temp_dir)
     
-    def process_video(self, video_path: str, output_dir: str = None) -> Dict[str, Any]:
+    def process_video(self, video_path: str, output_dir: str = None, save_file: bool = True) -> Dict[str, Any]:
         """
         Process a video file: extract audio and generate transcript.
         
         Args:
             video_path: Path to input video file
             output_dir: Directory to save transcript JSON (default: data/transcripts)
+            save_file: Whether to save transcript to JSON file (default: True)
             
         Returns:
             Dictionary containing transcript data
@@ -155,18 +126,19 @@ class VideoTranscriptGenerator:
         if output_dir is None:
             output_dir = "data/transcripts"
         
-        # Ensure output directory exists
-        os.makedirs(output_dir, exist_ok=True)
+        # Ensure output directory exists (only if saving file)
+        if save_file:
+            os.makedirs(output_dir, exist_ok=True)
         
         # Get video ID from filename
         video_id = Path(video_path).stem
         
         try:
             # Extract audio
-            audio_path = self.audio_extractor.extract_audio(video_path)
+            audio_path = self._extract_audio(video_path)
             
             # Transcribe with timestamps
-            transcript_data = self.transcriber.transcribe_with_timestamps(audio_path)
+            transcript_data = self._transcribe_audio(audio_path)
             
             # Format output according to spec
             output_data = {
@@ -179,19 +151,20 @@ class VideoTranscriptGenerator:
                 'duration_seconds': transcript_data['words'][-1]['end'] if transcript_data['words'] else 0.0
             }
             
-            # Save to JSON file
-            output_file = os.path.join(output_dir, f"{video_id}.json")
-            with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(output_data, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"Transcript saved to {output_file}")
+            # Optionally save to JSON file
+            if save_file:
+                output_file = os.path.join(output_dir, f"{video_id}.json")
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump(output_data, f, indent=2, ensure_ascii=False)
+                
+                logger.info(f"Transcript saved to {output_file}")
             logger.info(f"Processed {len(transcript_data['words'])} words in {output_data['duration_seconds']:.2f} seconds")
             
             return output_data
             
         finally:
             # Cleanup temporary files
-            self.audio_extractor.cleanup()
+            self._cleanup()
 
 
 def main():

@@ -17,10 +17,10 @@ from typing import Dict, Any, List
 # Add src to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-# Phase 1 and 2imports
+# Phase 1 and 2 imports
 from phase1_audio.extract_transcribe import VideoTranscriptGenerator
-from phase1_audio.segment_transcript_semantic import process_transcript_file_semantic
-from phase1_audio.embed_text_semantic import process_semantic_segmented_file
+from phase1_audio.segment_transcript_semantic import SemanticTranscriptSegmenter
+from phase1_audio.embed_text_semantic import SemanticEmbeddingProcessor
 from phase2_visual.sample_frames import FrameSampler
 from phase2_visual.embed_frames import FrameEmbedder
 
@@ -68,27 +68,26 @@ class VideoRAGMCPDriver:
             print(f"   - {video.name} ({video.stat().st_size / (1024*1024):.1f} MB)")
     
     def run_phase1_for_video(self, video_path: Path) -> bool:
-        """Phase 1: Audio → Transcription → Segmentation → Embedding for a single video"""
+        """Phase 1: Audio → Transcription → Segmentation → Embedding (optimized, no intermediate files)"""
         video_id = video_path.stem
         print(f"\n🎵 Phase 1: Audio Processing for {video_id}...")
         
         try:
-            # Transcription
+            # Step 1: Transcription (in-memory only)
             generator = VideoTranscriptGenerator(whisper_model="base")
-            transcript_data = generator.process_video(str(video_path), str(self.data_dir / "transcripts"))
-            transcript_file = self.data_dir / "transcripts" / f"{video_id}.json"
+            transcript_data = generator.process_video(str(video_path), save_file=False)
             
-            # Semantic segmentation
-            semantic_file = self.data_dir / "transcripts" / f"{video_id}_semantic.json"
-            semantic_data = process_transcript_file_semantic(
-                str(transcript_file), str(semantic_file),
+            # Step 2: Semantic segmentation (in-memory only)
+            segmenter = SemanticTranscriptSegmenter(
                 min_duration=5.0, max_duration=15.0, overlap_duration=1.0
             )
+            semantic_data = segmenter.segment_transcript(transcript_data)
             
-            # Text embedding
+            # Step 3: Text embedding (save only final file needed for Phase 3)
             embeddings_file = self.data_dir / "embeddings" / f"{video_id}_embeddings.json"
-            embedding_results = process_semantic_segmented_file(
-                str(semantic_file), str(embeddings_file), batch_size=16
+            processor = SemanticEmbeddingProcessor(clip_model="ViT-B-32", batch_size=16)
+            embedding_results = processor.process_semantic_segments(
+                semantic_data, str(embeddings_file)
             )
             
             print(f"✅ Audio ({video_id}): {semantic_data['total_segments']} segments, {embedding_results['embeddings_generated']} embeddings")
@@ -386,6 +385,47 @@ class VideoRAGMCPDriver:
         print("✅ All video content indexed and ready for MCP queries")
         
         return True
+    
+    def test_query(self, query: str, k: int = 5) -> bool:
+        """Simple query test to verify retrieval works correctly."""
+        if not COMPONENTS_AVAILABLE:
+            print("❌ Required components not available for querying")
+            return False
+        
+        print(f"\n🔍 Testing Query: '{query}'")
+        print(f"📊 Retrieving top {k} results...")
+        
+        try:
+            # Execute search
+            start_time = time.time()
+            documents, json_file = self.search_videos(query, k=k)
+            search_time = time.time() - start_time
+            
+            if not documents:
+                print("⚠️  No results found")
+                return False
+            
+            print(f"\n✅ Found {len(documents)} results in {search_time:.3f}s:")
+            print(f"{'='*80}")
+            
+            for i, doc in enumerate(documents, 1):
+                print(f"\n#{i} [{doc.get_timing_info()}] {doc.metadata.get('video_id', 'unknown')} ({doc.metadata.get('modality', 'unknown')})")
+                
+                if doc.is_audio_segment():
+                    content_preview = doc.page_content[:150] + "..." if len(doc.page_content) > 150 else doc.page_content
+                    print(f"   Text: {content_preview}")
+                    print(f"   Words: {doc.metadata.get('word_count', 0)}, Duration: {doc.metadata.get('duration', 0):.1f}s")
+                elif doc.is_frame_segment():
+                    print(f"   Frame: {doc.page_content}")
+                    print(f"   Path: {doc.metadata.get('path', 'N/A')}")
+            
+            print(f"\n{'='*80}")
+            print(f"💾 Detailed results saved to: {json_file}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Query test failed: {e}")
+            return False
 
 
 def main():
@@ -394,13 +434,28 @@ def main():
     
     parser = argparse.ArgumentParser(description="Video RAG Pipeline MCP Driver")
     parser.add_argument("--video", default="videos", help="Video file or directory to process")
+    parser.add_argument("--query", help="Test query to search for (optional)")
+    parser.add_argument("--k", type=int, default=5, help="Number of results to return (default: 5)")
     
     args = parser.parse_args()
     
     driver = VideoRAGMCPDriver(videos_dir=args.video)
-    success = driver.process_all_videos()
     
-    return 0 if success else 1
+    # Process videos if not already done
+    success = driver.process_all_videos()
+    if not success:
+        return 1
+    
+    # Test query if provided
+    if args.query:
+        print(f"\n{'='*80}")
+        print(f"🔍 QUERY TEST MODE")
+        print(f"{'='*80}")
+        query_success = driver.test_query(args.query, args.k)
+        if not query_success:
+            return 1
+    
+    return 0
 
 
 if __name__ == "__main__":

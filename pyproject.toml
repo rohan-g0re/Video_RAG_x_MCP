@@ -5,38 +5,34 @@ description = "Multimodal Video RAG Pipeline with MCP Server"
 readme = "README.md"
 requires-python = ">=3.11.9"
 dependencies = [
-    # Audio processing and transcription  
+    # Audio processing and transcription
     "faster-whisper>=1.0.0",
     "ffmpeg-python",
-    
     # Machine learning and embeddings
     "open-clip-torch",
     "torch",
-    "torchvision", 
+    "torchvision",
     "torchaudio",
-    
     # Data processing
     "numpy",
     "pandas",
-    
     # Database and storage
     "chromadb",
     "grpcio",
     "grpcio-tools",
-    
     # Utilities
     "tqdm",
     "python-dotenv",
     "pydantic",
-    
     # MCP Server
     "fastmcp>=2.0.0",
-    
     # Testing and development
     "pytest",
     "pytest-cov",
     "black",
     "flake8",
+    "fastapi>=0.116.1",
+    "tiktoken>=0.9.0",
 ]
 
 [build-system]
