@@ -1,0 +1,50 @@
+[project]
+name = "video-rag-using-mcp"
+version = "0.1.0"
+description = "Multimodal Video RAG Pipeline with MCP Server"
+readme = "README.md"
+requires-python = ">=3.11.9"
+dependencies = [
+    # Audio processing and transcription  
+    "faster-whisper>=1.0.0",
+    "ffmpeg-python",
+    
+    # Machine learning and embeddings
+    "open-clip-torch",
+    "torch",
+    "torchvision", 
+    "torchaudio",
+    
+    # Data processing
+    "numpy",
+    "pandas",
+    
+    # Database and storage
+    "chromadb",
+    "grpcio",
+    "grpcio-tools",
+    
+    # Utilities
+    "tqdm",
+    "python-dotenv",
+    "pydantic",
+    
+    # MCP Server
+    "fastmcp>=2.0.0",
+    
+    # Testing and development
+    "pytest",
+    "pytest-cov",
+    "black",
+    "flake8",
+]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["src"]
+
+[project.scripts]
+video-rag-mcp = "mcp_server:main"

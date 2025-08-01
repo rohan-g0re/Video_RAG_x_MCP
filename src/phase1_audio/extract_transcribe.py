@@ -15,7 +15,7 @@ from typing import Dict, List, Any
 import logging
 
 import ffmpeg
-import whisper
+from faster_whisper import WhisperModel
 from tqdm import tqdm
 
 # Setup logging
@@ -81,7 +81,7 @@ class AudioExtractor:
 
 
 class WhisperTranscriber:
-    """Handles transcription using OpenAI Whisper with word-level timestamps."""
+    """Handles transcription using faster-whisper with word-level timestamps."""
     
     def __init__(self, model_name: str = "medium"):
         """
@@ -90,9 +90,9 @@ class WhisperTranscriber:
         Args:
             model_name: Whisper model size (tiny, base, small, medium, large)
         """
-        logger.info(f"Loading Whisper model: {model_name}")
-        self.model = whisper.load_model(model_name)
-        logger.info("Whisper model loaded successfully")
+        logger.info(f"Loading faster-whisper model: {model_name}")
+        self.model = WhisperModel(model_name, device="auto", compute_type="auto")
+        logger.info("faster-whisper model loaded successfully")
     
     def transcribe_with_timestamps(self, audio_path: str) -> Dict[str, Any]:
         """
@@ -106,27 +106,30 @@ class WhisperTranscriber:
         """
         logger.info(f"Transcribing audio: {audio_path}")
         
-        # Transcribe with word-level timestamps
-        result = self.model.transcribe(
+        # Transcribe with word-level timestamps using faster-whisper
+        segments, info = self.model.transcribe(
             audio_path,
-            word_timestamps=True,
-            verbose=False
+            word_timestamps=True
         )
         
-        # Extract word-level timing information
+        # Extract word-level timing information and full text
         words_with_timestamps = []
+        full_text = ""
         
-        for segment in result.get('segments', []):
-            for word_info in segment.get('words', []):
+        for segment in segments:
+            full_text += segment.text + " "
+            
+            # Extract words with timestamps from this segment
+            for word in segment.words:
                 words_with_timestamps.append({
-                    'start': round(word_info.get('start', 0.0), 3),
-                    'end': round(word_info.get('end', 0.0), 3),
-                    'word': word_info.get('word', '').strip()
+                    'start': round(word.start, 3),
+                    'end': round(word.end, 3),
+                    'word': word.word.strip()
                 })
         
         return {
-            'text': result.get('text', ''),
-            'language': result.get('language', 'unknown'),
+            'text': full_text.strip(),
+            'language': info.language,
             'words': words_with_timestamps
         }
 
