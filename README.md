@@ -2,8 +2,7 @@
 
 *Multimodal video search for Claude Desktop through Model Context Protocol*
 
-**Inspired by:** [NVIDIA's Multimodal RAG Guide](https://developer.nvidia.com/blog/
-an-easy-introduction-to-multimodal-retrieval-augmented-generation-for-video-and-audio/)
+**Inspired by:** [NVIDIA's Multimodal RAG Guide](https://developer.nvidia.com/blog/an-easy-introduction-to-multimodal-retrieval-augmented-generation-for-video-and-audio/)
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![MCP](https://img.shields.io/badge/MCP-enabled-green.svg)](https://modelcontextprotocol.io)
