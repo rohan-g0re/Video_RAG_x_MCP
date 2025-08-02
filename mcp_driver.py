@@ -30,7 +30,7 @@ try:
     from phase4_retriever import search_videos, Retriever
     COMPONENTS_AVAILABLE = True
 except ImportError as e:
-    print(f"❌ Required components not available: {e}")
+    print(f"ERROR: Required components not available: {e}")
     COMPONENTS_AVAILABLE = False
 
 import logging
@@ -62,14 +62,14 @@ class VideoRAGMCPDriver:
         if not self.video_files:
             raise ValueError(f"No video files found in {self.videos_dir}")
         
-        print(f"🎬 Found {len(self.video_files)} video(s) to process:")
+        print(f"VIDEO: Found {len(self.video_files)} video(s) to process:")
         for video in self.video_files:
             print(f"   - {video.name} ({video.stat().st_size / (1024*1024):.1f} MB)")
     
     def run_phase1_for_video(self, video_path: Path) -> bool:
         """Phase 1: Audio → Transcription → Segmentation → Embedding (optimized, no intermediate files)"""
         video_id = video_path.stem
-        print(f"\n🎵 Phase 1: Audio Processing for {video_id}...")
+        print(f"\nAUDIO: Phase 1: Audio Processing for {video_id}...")
         
         try:
             # Step 1: Transcription (in-memory only)
@@ -89,17 +89,17 @@ class VideoRAGMCPDriver:
                 semantic_data, str(embeddings_file)
             )
             
-            print(f"✅ Audio ({video_id}): {semantic_data['total_segments']} segments, {embedding_results['embeddings_generated']} embeddings")
+            print(f"SUCCESS: Audio ({video_id}): {semantic_data['total_segments']} segments, {embedding_results['embeddings_generated']} embeddings")
             return True
             
         except Exception as e:
-            print(f"❌ Phase 1 failed for {video_id}: {e}")
+            print(f"ERROR: Phase 1 failed for {video_id}: {e}")
             return False
     
     def run_phase2_for_video(self, video_path: Path) -> bool:
         """Phase 2: Frame Extraction → Embedding for a single video"""
         video_id = video_path.stem
-        print(f"🖼️  Phase 2: Frame Processing for {video_id}...")
+        print(f"FRAMES: Phase 2: Frame Processing for {video_id}...")
         
         try:
             # Frame sampling
@@ -116,17 +116,17 @@ class VideoRAGMCPDriver:
             with open(frame_embeddings_file, 'w') as f:
                 json.dump(embeddings_list, f, indent=2)
             
-            print(f"✅ Frames ({video_id}): {len(frame_metadata)} extracted, {len(frame_embeddings)} embeddings")
+            print(f"SUCCESS: Frames ({video_id}): {len(frame_metadata)} extracted, {len(frame_embeddings)} embeddings")
             return True
             
         except Exception as e:
-            print(f"❌ Phase 2 failed for {video_id}: {e}")
+            print(f"ERROR: Phase 2 failed for {video_id}: {e}")
             return False
     
     def run_phase3_for_video(self, video_path: Path, clear_existing: bool = False) -> bool:
         """Phase 3: ChromaDB Ingestion for a single video"""
         video_id = video_path.stem
-        print(f"🗃️  Phase 3: Database Ingestion for {video_id}...")
+        print(f"DATABASE: Phase 3: Database Ingestion for {video_id}...")
         
         try:
             # Initialize ChromaDB
@@ -160,18 +160,18 @@ class VideoRAGMCPDriver:
             
             collection_info = vector_client.get_collection_info()
             
-            print(f"✅ Database ({video_id}): {phase1_result.segments_processed} audio + {phase2_result.segments_processed} frames")
-            print(f"📊 Total in collection: {collection_info['count']} vectors")
+            print(f"SUCCESS: Database ({video_id}): {phase1_result.segments_processed} audio + {phase2_result.segments_processed} frames")
+            print(f"STATS: Total in collection: {collection_info['count']} vectors")
             return phase1_result.success and phase2_result.success
             
         except Exception as e:
-            print(f"❌ Phase 3 failed for {video_id}: {e}")
+            print(f"ERROR: Phase 3 failed for {video_id}: {e}")
             return False
     
     def run_phases_for_all_videos(self) -> bool:
         """Run phases 1-3 for all videos in the videos directory"""
-        print(f"🚀 Starting multi-video processing pipeline...")
-        print(f"📁 Processing {len(self.video_files)} video(s)")
+        print(f"PROCESSING: Starting multi-video processing pipeline...")
+        print(f"FILES: Processing {len(self.video_files)} video(s)")
         
         total_processed = 0
         total_failed = 0
@@ -179,7 +179,7 @@ class VideoRAGMCPDriver:
         for i, video_path in enumerate(self.video_files):
             video_id = video_path.stem
             print(f"\n{'='*60}")
-            print(f"🎬 Processing Video {i+1}/{len(self.video_files)}: {video_id}")
+            print(f"VIDEO: Processing Video {i+1}/{len(self.video_files)}: {video_id}")
             print(f"{'='*60}")
             
             # Run phases 1-3 for this video
@@ -197,19 +197,19 @@ class VideoRAGMCPDriver:
             
             # Check if all phases succeeded for this video
             if all(phases_success):
-                print(f"✅ Video {video_id} processed successfully")
+                print(f"SUCCESS: Video {video_id} processed successfully")
                 total_processed += 1
             else:
-                print(f"❌ Video {video_id} failed in one or more phases")
+                print(f"ERROR: Video {video_id} failed in one or more phases")
                 total_failed += 1
         
         # Summary
         print(f"\n{'='*60}")
-        print(f"📊 MULTI-VIDEO PROCESSING SUMMARY")
+        print(f"STATS: MULTI-VIDEO PROCESSING SUMMARY")
         print(f"{'='*60}")
-        print(f"✅ Successfully processed: {total_processed} videos")
-        print(f"❌ Failed: {total_failed} videos")
-        print(f"📊 Total videos: {len(self.video_files)}")
+        print(f"SUCCESS: Successfully processed: {total_processed} videos")
+        print(f"ERROR: Failed: {total_failed} videos")
+        print(f"STATS: Total videos: {len(self.video_files)}")
         
         # Get final database stats
         if total_processed > 0:
@@ -218,14 +218,14 @@ class VideoRAGMCPDriver:
                 collection_info = vector_client.get_collection_info()
                 video_list = vector_client.list_videos()
                 
-                print(f"\n🗃️  FINAL DATABASE STATUS:")
+                print(f"\nDATABASE: FINAL DATABASE STATUS:")
                 print(f"   Total vectors: {collection_info['count']}")
                 print(f"   Videos in database: {len(video_list)}")
                 for video_id in video_list:
                     print(f"     - {video_id}")
                     
             except Exception as e:
-                print(f"⚠️  Could not get final database stats: {e}")
+                print(f"WARNING: Could not get final database stats: {e}")
         
         return total_processed > 0 and total_failed == 0
     
@@ -246,13 +246,13 @@ class VideoRAGMCPDriver:
         for i, doc in enumerate(documents):
             result_data = {
                 "rank": i + 1,
-                "content": doc.page_content,  # ✅ ACTUAL transcript text or frame description
+                "content": doc.page_content,  # ACTUAL transcript text or frame description
                 "metadata": dict(doc.metadata),
                 "timing": doc.get_timing_info(),
                 "modality": doc.metadata.get('modality'),
                 "is_audio": doc.is_audio_segment(),
                 "is_frame": doc.is_frame_segment(),
-                # ✅ ADDED: Full content details for MCP client usage
+                # ADDED: Full content details for MCP client usage
                 "mcp_content": {
                     "full_text": doc.page_content if doc.is_audio_segment() else None,
                     "frame_path": doc.metadata.get('path') if doc.is_frame_segment() else None,
@@ -262,7 +262,7 @@ class VideoRAGMCPDriver:
                     "word_count": doc.metadata.get('word_count'),
                     "duration_seconds": doc.metadata.get('duration')
                 },
-                # ✅ ADDED: Complete context for MCP client processing
+                # ADDED: Complete context for MCP client processing
                 "context_for_mcp": {
                     "video_id": doc.metadata.get('video_id'),
                     "segment_timing": doc.get_timing_info(), 
@@ -275,7 +275,7 @@ class VideoRAGMCPDriver:
             }
             results_data["results"].append(result_data)
         
-        # ✅ ADDED: Summary for MCP client usage with content analysis
+        # ADDED: Summary for MCP client usage with content analysis
         audio_segments = [doc for doc in documents if doc.is_audio_segment()]
         frame_segments = [doc for doc in documents if doc.is_frame_segment()]
         
@@ -309,7 +309,7 @@ class VideoRAGMCPDriver:
             }
         }
         
-        # ✅ ADDED: MCP instruction template
+        # ADDED: MCP instruction template
         results_data["mcp_instructions"] = {
             "usage": "Use the 'mcp_content' field for each result to access full transcript text or frame information",
             "citations": "Use 'citation_format' for proper source attribution in responses",
@@ -344,20 +344,158 @@ class VideoRAGMCPDriver:
             search_time = time.time() - start_time
             
             if documents:
-                print(f"✅ Found {len(documents)} results in {search_time:.3f}s")
+                print(f"SUCCESS: Found {len(documents)} results in {search_time:.3f}s")
                 
                 # Save results to JSON with MCP-ready format
                 json_file = self.save_results_to_json(query, documents, search_time)
-                print(f"💾 Results saved to: {json_file}")
+                print(f"SAVED: Results saved to: {json_file}")
                 
                 return documents, json_file
             else:
-                print(f"⚠️  No results found in {search_time:.3f}s")
+                print(f"WARNING: No results found in {search_time:.3f}s")
                 return [], ""
                 
         except Exception as e:
-            print(f"❌ Search failed: {e}")
+            print(f"ERROR: Search failed: {e}")
             raise
+    
+    def intelligent_search(self, query: str, k: int = 5) -> tuple[List, str, Dict[str, Any]]:
+        """
+        Intelligent search that automatically handles video processing if needed.
+        
+        Returns:
+            - documents: List of search results
+            - json_file: Path to detailed results file
+            - status: Dict with success status and metadata
+        """
+        if not COMPONENTS_AVAILABLE:
+            return [], "", {
+                "success": False,
+                "error": "Phase 4 components not available for querying",
+                "processed_videos": False
+            }
+        
+        status = {
+            "success": False,
+            "processed_videos": False,
+            "videos_found": len(self.video_files),
+            "error": None
+        }
+        
+        try:
+            # Check if videos are already processed by attempting a quick search
+            videos_processed = False
+            try:
+                test_documents, _ = self.search_videos("test", k=1)
+                videos_processed = len(test_documents) > 0
+            except Exception:
+                # If search fails, videos likely not processed
+                videos_processed = False
+            
+            # Process videos if needed
+            if not videos_processed:
+                print("PROCESSING: Videos not processed yet - running pipeline...")
+                success = self.process_all_videos()
+                if not success:
+                    status["error"] = "Failed to process videos"
+                    return [], "", status
+                
+                status["processed_videos"] = True
+                print("SUCCESS: Video processing completed")
+            
+            # Execute the actual search
+            documents, json_file = self.search_videos(query, k=k)
+            
+            status["success"] = True
+            status["total_results"] = len(documents)
+            
+            return documents, json_file, status
+            
+        except Exception as e:
+            status["error"] = str(e)
+            print(f"ERROR: Intelligent search failed: {e}")
+            return [], "", status
+    
+    def format_mcp_response(self, query: str, documents: List, json_file: str, status: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format search results for MCP client consumption.
+        
+        Converts raw documents into a structured response with metadata and summaries.
+        """
+        if not status["success"]:
+            return {
+                "success": False,
+                "query": query,
+                "error": status.get("error", "Unknown error"),
+                "results": []
+            }
+        
+        if not documents:
+            return {
+                "success": True,
+                "query": query,
+                "total_results": 0,
+                "results": [],
+                "message": "No matching content found"
+            }
+        
+        # Format results as list of content chunks with metadata
+        results = []
+        for i, doc in enumerate(documents):
+            # Get the actual content and metadata
+            result = {
+                "rank": i + 1,
+                "content": doc.page_content,
+                "video_id": doc.metadata.get('video_id', 'unknown'),
+                "timing": doc.get_timing_info(),
+                "start_time": doc.metadata.get('start', 0),
+                "end_time": doc.metadata.get('end', 0),
+                "modality": doc.metadata.get('modality', 'unknown'),
+                "is_audio": doc.is_audio_segment(),
+                "is_visual": doc.is_frame_segment(),
+                "citation": f"[{doc.get_timing_info()}] {doc.metadata.get('modality')} from {doc.metadata.get('video_id')}"
+            }
+            
+            # Add specific fields based on content type
+            if doc.is_audio_segment():
+                result["word_count"] = doc.metadata.get('word_count', 0)
+                result["duration"] = doc.metadata.get('duration', 0)
+            elif doc.is_frame_segment():
+                result["frame_path"] = doc.metadata.get('path')
+            
+            results.append(result)
+        
+        # Create summary stats
+        audio_segments = [r for r in results if r["is_audio"]]
+        visual_segments = [r for r in results if r["is_visual"]]
+        video_ids = list(set(r["video_id"] for r in results))
+        
+        response = {
+            "success": True,
+            "query": query,
+            "total_results": len(results),
+            "results": results,  # List of content chunks with metadata
+            "summary": {
+                "audio_segments": len(audio_segments),
+                "visual_segments": len(visual_segments),
+                "videos_included": len(video_ids),
+                "video_ids": video_ids,
+                "time_range": f"{min(r['start_time'] for r in results):.1f}s - {max(r['end_time'] for r in results):.1f}s" if results else "0s - 0s",
+                "total_words": sum(r.get("word_count", 0) for r in audio_segments)
+            },
+            "detailed_results_file": json_file  # Full MCP-ready JSON file path
+        }
+        
+        return response
+    
+    def search_and_format_for_mcp(self, query: str, k: int = 5) -> Dict[str, Any]:
+        """
+        Complete search workflow for MCP: intelligent search + formatted response.
+        
+        This is the single method MCP server should call.
+        """
+        documents, json_file, status = self.intelligent_search(query, k=k)
+        return self.format_mcp_response(query, documents, json_file, status)
     
     def get_stats(self) -> Dict[str, Any]:
         """Get database statistics."""
@@ -379,7 +517,7 @@ class VideoRAGMCPDriver:
     def process_all_videos(self) -> bool:
         """Process all videos through phases 1-3 and prepare for retrieval."""
         if not COMPONENTS_AVAILABLE:
-            print("❌ Required components not available")
+            print("ERROR: Required components not available")
             return False
         
         # Run multi-video processing for all videos found
@@ -389,23 +527,23 @@ class VideoRAGMCPDriver:
         success = self.run_phases_for_all_videos()
         
         if not success:
-            print("❌ Multi-video processing failed")
+            print("ERROR: Multi-video processing failed")
             return False
         
         total_time = time.time() - start_time
-        print(f"\n🎉 Multi-video pipeline completed in {total_time:.1f}s")
-        print("✅ All video content indexed and ready for MCP queries")
+        print(f"\nCOMPLETE: Multi-video pipeline completed in {total_time:.1f}s")
+        print("SUCCESS: All video content indexed and ready for MCP queries")
         
         return True
     
     def test_query(self, query: str, k: int = 5) -> bool:
         """Simple query test to verify retrieval works correctly."""
         if not COMPONENTS_AVAILABLE:
-            print("❌ Required components not available for querying")
+            print("ERROR: Required components not available for querying")
             return False
         
-        print(f"\n🔍 Testing Query: '{query}'")
-        print(f"📊 Retrieving top {k} results...")
+        print(f"\nSEARCH: Testing Query: '{query}'")
+        print(f"STATS: Retrieving top {k} results...")
         
         try:
             # Execute search
@@ -414,10 +552,10 @@ class VideoRAGMCPDriver:
             search_time = time.time() - start_time
             
             if not documents:
-                print("⚠️  No results found")
+                print("WARNING: No results found")
                 return False
             
-            print(f"\n✅ Found {len(documents)} results in {search_time:.3f}s:")
+            print(f"\nSUCCESS: Found {len(documents)} results in {search_time:.3f}s:")
             print(f"{'='*80}")
             
             for i, doc in enumerate(documents, 1):
@@ -432,11 +570,11 @@ class VideoRAGMCPDriver:
                     print(f"   Path: {doc.metadata.get('path', 'N/A')}")
             
             print(f"\n{'='*80}")
-            print(f"💾 Detailed results saved to: {json_file}")
+            print(f"SAVED: Detailed results saved to: {json_file}")
             return True
             
         except Exception as e:
-            print(f"❌ Query test failed: {e}")
+            print(f"ERROR: Query test failed: {e}")
             return False
 
 
@@ -461,7 +599,7 @@ def main():
     # Test query if provided
     if args.query:
         print(f"\n{'='*80}")
-        print(f"🔍 QUERY TEST MODE")
+        print(f"SEARCH: QUERY TEST MODE")
         print(f"{'='*80}")
         query_success = driver.test_query(args.query, args.k)
         if not query_success:
