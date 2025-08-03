@@ -1,12 +1,11 @@
    # Video RAG with MCP
 
-*Multimodal video search for Claude Desktop through Model Context Protocol*
+_**Local Video RAG tool for Claude Desktop orchestrated via Model Context Protocol (MCP)**_
 
 **Inspired by:** [NVIDIA's Multimodal RAG Guide](https://developer.nvidia.com/blog/an-easy-introduction-to-multimodal-retrieval-augmented-generation-for-video-and-audio/)
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![MCP](https://img.shields.io/badge/MCP-enabled-green.svg)](https://modelcontextprotocol.io)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11.9-blue.svg)](https://python.org)
 
 ## Overview
 
