@@ -24,14 +24,13 @@ Transform videos into searchable knowledge through audio transcription and visua
 - Semantic segmentation and embedding
 
 **🔍 Intelligent Search**
-- Natural language queries
-- Cross-modal content retrieval
-- Multi-video support
+- Natural language queries handle by an LLM like Claude Desktop
+- Cross-modal content retrieval based of vector similarity
 
 **🤖 Claude Integration**
 - MCP server for Claude Desktop
 - Real-time video content search
-- Contextual responses with citations
+- Contextual responses with **citations and timestamps**.
 
 <div align="center">
   <img src="docs/SS2.png" alt="Search Results" width="700"/>
@@ -42,7 +41,8 @@ Transform videos into searchable knowledge through audio transcription and visua
 ### Prerequisites
 
 ```bash
-python 3.11 - REQUIRED --> because 3.13 has commpatibility issues with ChromaDB
+python 3.11 - REQUIRED 
+# because 3.13 has commpatibility issues with ChromaDB
 ```
 
 ### Installation
@@ -53,16 +53,19 @@ git clone https://github.com/rohan-g0re/Video_RAG_x_MCP.git
 cd Video_RAG_x_MCP
 
 # Install dependencies
+uv init
+uv venv
+.\.venv\Scripts\activate
 uv add -r requirements.txt
 
-# Add videos
+# Make "videos" directory when you can store your video files
 mkdir -p videos
-cp your_videos.mp4 videos/
+
+# [OPTIONAL] Copy your local video files to our videos directory
+cp your_videos.mp4 <path_to_this_repo>videos/
 ```
 
-### Usage
-
-**Add to Claude Desktop config:**
+### Add to Claude Desktop config:
 
 ```json
 {
@@ -83,11 +86,11 @@ cp your_videos.mp4 videos/
 ## Architecture
 
 ```
-Videos → [Audio + Visual Processing] → Vector DB → MCP Server → Claude Desktop
+Videos → [Audio + Visual Processing] → Vector DB → Multimodel Retrieval → MCP Server → Claude Desktop
 ```
 
 - **Phase 1**: Audio transcription and semantic segmentation
-- **Phase 2**: Frame extraction and visual embedding  --> _**Can add VLM Integration for adding captions to images**_
+- **Phase 2**: Frame extraction and visual embedding  --> 
 - **Phase 3**: ChromaDB vector storage
 - **Phase 4**: Multimodal retrieval service
 - **MCP**: Claude Desktop integration
@@ -98,6 +101,8 @@ graph TD
     A[Multiple Videos] --> B[Phase 1: Audio Processing]
     A --> C[Phase 2: Visual Processing]
     
+   G[Natural Language Query] --> G1[Claude Desktop]
+
     B --> B1[Audio Extraction]
     B1 --> B2[Whisper Transcription]
     B2 --> B3[Semantic Segmentation]
@@ -110,26 +115,41 @@ graph TD
     C2 --> D
     
     D --> E[Phase 4: Retrieval Service]
-    E --> F[Phase 5: LLM Generation]
-    F --> G[Interactive CLI]
+
+    G2 --> F[MCP Server]
     
     E --> E1[Query Embedding]
     E1 --> E2[Cross-Video Similarity Search]
     
-    F --> F1[Context Assembly]
-    F1 --> F2[ChatGroq LLM Response]
-    F2 --> F3[Source Citations]
+    F --> F1[FastMCP Tool Interface]
+    F1 --> F2[Tool: search_video_content] --> E
     
-    G --> G1[User Queries]
-    G1 --> G2[Real-time Responses]
-    G2 --> G3[Multi-Video Results]
+    G1 --> G2[MCP Tool Call]
+    E2 --> G3[Retrieved Chunks]
+    G3 --> G1
+    G1 --> G4[LLM-Generated Response]
     
     style A fill:#e1f5fe
     style D fill:#f3e5f5
     style E fill:#e8f5e8
+    style E1 fill:#e8f5e8
+    style E2 fill:#e8f5e8
+    style G3 fill:#e8f5e8
+    
     style F fill:#fff3e0
-    style G fill:#fce4ec
+    style G fill:#fce484
+    style G1 fill:#fce484
+    style G2 fill:#fce484
+    style F fill:#fce484
+    style F1 fill:#fce484
+    style F2 fill:#fce484
+
+    style G4 fill:#ee82ee
+
+
 ```
+
+_**Future Enhancement Plan: Can add VLM Integration for adding captions to images which enhances the visual retrieval accuracy**_
 
 ## Configuration
 
@@ -148,7 +168,7 @@ Video: `.mp4`, `.avi`, `.mov`, `.mkv`, `.wmv`, `.flv`, `.webm`
 
 - uv
 - Python 3.11
-
+- add requirements.txt in venv (python/uv) 
 ---
 
 <div align="center">
